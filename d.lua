@@ -2168,8 +2168,6 @@ Core.Features.PlayerESP = {
 Core.Settings = {
 	AutoQueue = false,
 	AutoReexec = true,
-	AutoLoadConfig = true,
-	ConfigName = "default",
 	ScriptPath = "살보결 hub.lua",
 	ScriptUrl = "https://raw.githubusercontent.com/deltosh/test/refs/heads/main/d.lua", -- hardcoded reexec source (UI hidden)
 	SettingsFile = "MVSD/settings.json",
@@ -2187,10 +2185,6 @@ Core.Features.SkinChanger = {
 	SaveFile = "MVSD/skins.json",
 }
 
-Core.Config = {
-	Selected = nil,
-	NameInput = ""
-}
 
 function Core:GetCharacter(player)
 	player = player or LocalPlayer
@@ -2403,166 +2397,6 @@ function Core:EnsureConfigFolder()
 	if not isfolder("MVSD") then
 		makefolder("MVSD")
 	end
-	if not isfolder(folder_name .. "/configs") then
-		makefolder(folder_name .. "/configs")
-	end
-	return true
-end
-
-function Core:ListConfigs()
-	local list = {}
-	local ok = Core:EnsureConfigFolder()
-	if not ok or typeof(listfiles) ~= "function" then
-		return list
-	end
-	local files = listfiles(folder_name .. "/configs")
-	if type(files) ~= "table" then
-		return list
-	end
-	for _, file in next, files do
-		local name = tostring(file):match("([^/\\]+)%.json$")
-		if name then
-			table.insert(list, name)
-		end
-	end
-	table.sort(list)
-	return list
-end
-
-function Core:SerializeFeatures()
-	local out = {}
-	for fname, feature in pairs(Core.Features) do
-		if type(feature) == "table" then
-			local copy = {}
-			for k, v in pairs(feature) do
-				if k ~= "Hook" and k ~= "OriginalCollision" and k ~= "Original" and k ~= "Saved" and k ~= "Applying" and k ~= "ActiveId" then
-					local ty = typeof(v)
-					if ty == "Color3" then
-						copy[k] = { __type = "Color3", R = v.R, G = v.G, B = v.B }
-					elseif ty == "number" or ty == "string" or ty == "boolean" then
-						copy[k] = v
-					end
-				end
-			end
-			out[fname] = copy
-		end
-	end
-	return out
-end
-
-function Core:DeserializeFeatures(data)
-	if type(data) ~= "table" then return end
-	for fname, values in pairs(data) do
-		local feature = Core.Features[fname]
-		if feature and type(values) == "table" then
-			for k, v in pairs(values) do
-				if k ~= "Hook" and k ~= "OriginalCollision" and k ~= "Original" and k ~= "Saved" and k ~= "Applying" and k ~= "ActiveId" then
-					if type(v) == "table" and (v.__type == "Color3" or v.R or v.r) then
-						feature[k] = Color3.new(v.R or v.r or 1, v.G or v.g or 1, v.B or v.b or 1)
-					elseif type(feature[k]) == "boolean" or type(v) == "boolean" then
-						-- JSON/레거시에서 1/0/"true" 도 허용
-						if type(v) == "boolean" then
-							feature[k] = v
-						elseif type(v) == "number" then
-							feature[k] = v ~= 0
-						elseif type(v) == "string" then
-							local lower = string.lower(v)
-							feature[k] = (lower == "true" or lower == "1" or lower == "yes")
-						else
-							feature[k] = v and true or false
-						end
-					elseif typeof(feature[k]) ~= "function" then
-						feature[k] = v
-					end
-				end
-			end
-			-- legacy key
-			if fname == "PlayerESP" and values.Arrow ~= nil and feature.Arrows == nil then
-				feature.Arrows = values.Arrow and true or false
-			end
-			if fname == "PlayerESP" and values.Arrow ~= nil and values.Arrows == nil then
-				feature.Arrows = values.Arrow and true or false
-			end
-		end
-	end
-end
-
-function Core:SaveConfig(name)
-	name = tostring(name or ""):gsub("^%s+", ""):gsub("%s+$", "")
-	if name == "" or name == "(none)" then
-		return false, "empty name"
-	end
-	name = name:gsub("[\\/:*?\"<>|]", "_")
-
-	local folder_ok, folder_err = Core:EnsureConfigFolder()
-	if not folder_ok then
-		return false, folder_err
-	end
-
-	local payload = {
-		Version = Core.Version,
-		Features = Core:SerializeFeatures(),
-	}
-
-	local ok, encoded = pcall(function()
-		return Services.HttpService:JSONEncode(payload)
-	end)
-	if not ok then
-		return false, encoded
-	end
-
-	local write_ok, write_err = pcall(function()
-		writefile(folder_name .. "/configs/" .. name .. ".json", encoded)
-	end)
-	if not write_ok then
-		return false, write_err
-	end
-
-	Core.Config.Selected = name
-	Core.Config.NameInput = name
-	return true
-end
-
-function Core:LoadConfig(name)
-	name = tostring(name or ""):gsub("^%s+", ""):gsub("%s+$", "")
-	if name == "" or name == "(none)" then
-		return false, "no config"
-	end
-
-	local path = folder_name .. "/configs/" .. name .. ".json"
-	if typeof(isfile) ~= "function" or not isfile(path) then
-		return false, "missing file"
-	end
-
-	local ok, raw = pcall(readfile, path)
-	if not ok then
-		return false, raw
-	end
-
-	local decode_ok, data = pcall(function()
-		return Services.HttpService:JSONDecode(raw)
-	end)
-	if not decode_ok or type(data) ~= "table" then
-		return false, "invalid json"
-	end
-
-	local features = data.Features or data
-	Core:DeserializeFeatures(features)
-	Core.Config.Selected = name
-	Core.Config.NameInput = name
-	return true, features
-end
-
-function Core:DeleteConfig(name)
-	name = tostring(name or "")
-	if name == "" or name == "(none)" then return false, "no config" end
-	local path = folder_name .. "/configs/" .. name .. ".json"
-	if typeof(isfile) == "function" and isfile(path) then
-		pcall(delfile, path)
-	end
-	if Core.Config.Selected == name then
-		Core.Config.Selected = nil
-	end
 	return true
 end
 
@@ -2574,8 +2408,6 @@ function Core:SaveSettings()
 	local payload = {
 		AutoQueue = Core.Settings.AutoQueue and true or false,
 		AutoReexec = Core.Settings.AutoReexec and true or false,
-		AutoLoadConfig = Core.Settings.AutoLoadConfig and true or false,
-		ConfigName = tostring(Core.Settings.ConfigName or "default"),
 		ScriptPath = tostring(Core.Settings.ScriptPath or "살보결 hub.lua"),
 		ScriptUrl = tostring(Core.Settings.ScriptUrl or ""),
 	}
@@ -2597,8 +2429,6 @@ function Core:LoadSettings()
 	if not decode_ok or type(data) ~= "table" then return false end
 	if data.AutoQueue ~= nil then Core.Settings.AutoQueue = data.AutoQueue and true or false end
 	if data.AutoReexec ~= nil then Core.Settings.AutoReexec = data.AutoReexec and true or false end
-	if data.AutoLoadConfig ~= nil then Core.Settings.AutoLoadConfig = data.AutoLoadConfig and true or false end
-	if data.ConfigName ~= nil then Core.Settings.ConfigName = tostring(data.ConfigName) end
 	if data.ScriptPath ~= nil then Core.Settings.ScriptPath = tostring(data.ScriptPath) end
 	if data.ScriptUrl ~= nil and tostring(data.ScriptUrl) ~= "" then
 		Core.Settings.ScriptUrl = tostring(data.ScriptUrl)
@@ -2608,10 +2438,6 @@ end
 
 pcall(function()
 	Core:LoadSettings()
-	if Core.Settings.ConfigName and Core.Settings.ConfigName ~= "" then
-		Core.Config.NameInput = Core.Settings.ConfigName
-		Core.Config.Selected = Core.Settings.ConfigName
-	end
 end)
 
 local function bindKey(toggle)
@@ -2721,8 +2547,7 @@ local sections = {
 	render_left = tabs.Render:AddSection({ name = "esp", side = "Left", height = "fill" }),
 	render_right = tabs.Render:AddSection({ name = "aura", side = "Right", height = "fill" }),
 	skins_left = tabs.Skins:AddSection({ name = "skin changer", side = "Left", height = "fill" }),
-	settings_left = tabs.Settings:AddSection({ name = "config", side = "Left", height = "fill" }),
-	settings_right = tabs.Settings:AddSection({ name = "auto", side = "Right", height = "fill" }),
+	settings_right = tabs.Settings:AddSection({ name = "auto", side = "Left", height = "fill" }),
 }
 
 local ConfigSliders = {}
@@ -4562,274 +4387,7 @@ sections.skins_left:AddButton({
 	end,
 })
 
-local function setToggle(toggle, enabled)
-	if not toggle or not toggle.UpdateState then return end
-	enabled = enabled and true or false
-	-- UI만 맞추고 콜백은 따로 돌림 (UpdateState 연속 호출 시 커넥션 유실 방지)
-	toggle:UpdateState(enabled, false)
-end
-
-local function setSlider(key, value)
-	local slider = ConfigSliders[key]
-	if not slider or value == nil then return end
-	value = tonumber(value)
-	if value == nil then return end
-	pcall(function()
-		slider:SetValue(value)
-	end)
-end
-
-local ConfigDropdown
-
-local function applyLoadedConfig(features)
-	features = features or Core.Features
-
-	-- 플래그 먼저 스냅샷 (토글 콜백이 Enabled를 건드리지 않게)
-	local want = {
-		KillAll = Core.Features.KillAll.Enabled and true or false,
-		AutoShoot = Core.Features.AutoShoot.Enabled and true or false,
-		SilentAim = Core.Features.SilentAim.Enabled and true or false,
-		SilentAimWallCheck = Core.Features.SilentAim.WallCheck and true or false,
-		KnifeAura = Core.Features.KnifeAura.Enabled and true or false,
-		SetCooldown = Core.Features.SetCooldown.Enabled and true or false,
-		SetThrowSpeed = Core.Features.SetThrowSpeed.Enabled and true or false,
-		HitboxExtender = Core.Features.HitboxExtender.Enabled and true or false,
-		NoFog = Core.Features.NoFog.Enabled and true or false,
-		Flight = Core.Features.Flight.Enabled and true or false,
-		Walkspeed = Core.Features.Walkspeed.Enabled and true or false,
-		JumpPower = Core.Features.JumpPower.Enabled and true or false,
-		FOV = Core.Features.FOV.Enabled and true or false,
-		Gravity = Core.Features.Gravity.Enabled and true or false,
-		Phase = Core.Features.Phase.Enabled and true or false,
-		LongJump = Core.Features.LongJump.Enabled and true or false,
-		WallClimb = Core.Features.WallClimb.Enabled and true or false,
-		SpinBot = Core.Features.SpinBot.Enabled and true or false,
-		BunnyHop = Core.Features.BunnyHop.Enabled and true or false,
-		PlayerESP = Core.Features.PlayerESP.Enabled and true or false,
-		Aura = Core.Features.Aura.Enabled and true or false,
-		ESPTeamCheck = Core.Features.PlayerESP.TeamCheck and true or false,
-		ESPRemoveHidden = Core.Features.PlayerESP.RemoveHiddenCharacters and true or false,
-		ESPBox = Core.Features.PlayerESP.Box and true or false,
-		ESPTracer = Core.Features.PlayerESP.Tracer and true or false,
-		ESPSkeleton = Core.Features.PlayerESP.Skeleton and true or false,
-		ESPArrows = Core.Features.PlayerESP.Arrows and true or false,
-		ESPName = Core.Features.PlayerESP.Name and true or false,
-		ESPRainbow = Core.Features.PlayerESP.Rainbow and true or false,
-	}
-
-	-- sync sliders first
-	setSlider("SilentAimRange", Core.Features.SilentAim.Range)
-	setSlider("SetCooldown", Core.Features.SetCooldown.Cooldown)
-	setSlider("SetThrowSpeed", Core.Features.SetThrowSpeed.Speed)
-	setSlider("HitboxSize", Core.Features.HitboxExtender.Size)
-	setSlider("HitboxTransparency", Core.Features.HitboxExtender.Transparency)
-	setSlider("FogDensity", Core.Features.NoFog.Density)
-	setSlider("FogHaze", Core.Features.NoFog.Haze)
-	setSlider("FogGlare", Core.Features.NoFog.Glare)
-	setSlider("FlightH", Core.Features.Flight.HorizontalSpeed)
-	setSlider("FlightV", Core.Features.Flight.VerticalSpeed)
-	setSlider("Walkspeed", Core.Features.Walkspeed.Speed)
-	setSlider("JumpPower", Core.Features.JumpPower.Power)
-	setSlider("FOV", Core.Features.FOV.Value)
-	setSlider("Gravity", Core.Features.Gravity.Value)
-	setSlider("LongJumpHeight", Core.Features.LongJump.Height)
-	setSlider("LongJumpBoost", Core.Features.LongJump.Boost)
-	setSlider("WallClimb", Core.Features.WallClimb.Speed)
-	setSlider("SpinBot", Core.Features.SpinBot.Speed)
-
-	local function fireToggle(toggle, enabled)
-		if not toggle or not toggle.UpdateState then return end
-		enabled = enabled and true or false
-		-- 항상 off(콜백) → on(콜백) 로 커넥션 재생성
-		pcall(function()
-			toggle:UpdateState(false, true)
-		end)
-		if enabled then
-			pcall(function()
-				toggle:UpdateState(true, true)
-			end)
-		end
-	end
-
-	-- 서브 옵션
-	fireToggle(SilentAimWallCheck, want.SilentAimWallCheck)
-	fireToggle(ESPTeamCheck, want.ESPTeamCheck)
-	fireToggle(ESPRemoveHidden, want.ESPRemoveHidden)
-	fireToggle(ESPBox, want.ESPBox)
-	fireToggle(ESPTracer, want.ESPTracer)
-	fireToggle(ESPSkeleton, want.ESPSkeleton)
-	fireToggle(ESPArrows, want.ESPArrows)
-	fireToggle(ESPName, want.ESPName)
-	fireToggle(ESPRainbow, want.ESPRainbow)
-
-	-- 메인 (KillAll이 AutoShoot보다 먼저)
-	fireToggle(SilentAim, want.SilentAim)
-	fireToggle(KnifeAura, want.KnifeAura)
-	fireToggle(SetCooldown, want.SetCooldown)
-	fireToggle(SetThrowSpeed, want.SetThrowSpeed)
-	fireToggle(HitboxExtender, want.HitboxExtender)
-	fireToggle(NoFog, want.NoFog)
-	fireToggle(Flight, want.Flight)
-	fireToggle(Walkspeed, want.Walkspeed)
-	fireToggle(JumpPower, want.JumpPower)
-	fireToggle(FOV, want.FOV)
-	fireToggle(Gravity, want.Gravity)
-	fireToggle(Phase, want.Phase)
-	fireToggle(LongJump, want.LongJump)
-	fireToggle(WallClimb, want.WallClimb)
-	fireToggle(SpinBot, want.SpinBot)
-	fireToggle(BunnyHop, want.BunnyHop)
-	fireToggle(PlayerESP, want.PlayerESP)
-	fireToggle(Aura, want.Aura)
-
-	fireToggle(KillAll, want.KillAll)
-	-- KillAll 켜져 있으면 AutoShoot 루프는 양보하므로, 둘 다 켜도 KillAll 우선
-	fireToggle(AutoShoot, want.AutoShoot)
-
-	-- 플래그 최종 보장 + 연결 재확인
-	Core.Features.KillAll.Enabled = want.KillAll
-	Core.Features.AutoShoot.Enabled = want.AutoShoot
-	if want.KillAll and not Core.Connections.KillAll then
-		fireToggle(KillAll, true)
-	end
-	if want.AutoShoot and not Core.Connections.AutoShoot then
-		fireToggle(AutoShoot, true)
-	end
-
-	print(string.format(
-		"[살보결] Config applied KillAll=%s (conn=%s) AutoShoot=%s (conn=%s)",
-		tostring(Core.Features.KillAll.Enabled),
-		tostring(Core.Connections.KillAll ~= nil),
-		tostring(Core.Features.AutoShoot.Enabled),
-		tostring(Core.Connections.AutoShoot ~= nil)
-	))
-end
-
-local function getConfigName()
-	if ConfigDropdown and ConfigDropdown.active and ConfigDropdown.active[1] then
-		local selected = ConfigDropdown.active[1]
-		if selected and selected ~= "" and selected ~= "(none)" then
-			return selected
-		end
-	end
-	local name = Core.Config.NameInput
-	if not name or name == "" or name == "(none)" then
-		name = Core.Config.Selected
-	end
-	if (not name or name == "") and Core.Settings and Core.Settings.ConfigName then
-		name = Core.Settings.ConfigName
-	end
-	return name
-end
-
-sections.settings_left:AddTextbox({
-	name = "config name",
-	default = Core.Config.NameInput ~= "" and Core.Config.NameInput or (Core.Settings.ConfigName or "default"),
-	callback = function(text)
-		Core.Config.NameInput = text
-		Core.Config.Selected = text
-		Core.Settings.ConfigName = text
-		Core:SaveSettings()
-	end,
-})
-
-ConfigDropdown = sections.settings_left:AddDropdown({
-	name = "saved configs",
-	list = (function()
-		local list = Core:ListConfigs()
-		if #list == 0 then return { "(none)" } end
-		return list
-	end)(),
-	default = 1,
-	min = 0,
-	max = 1,
-	callback = function(selected)
-		if selected and selected ~= "" and selected ~= "(none)" then
-			Core.Config.Selected = selected
-			Core.Config.NameInput = selected
-			Core.Settings.ConfigName = selected
-			Core:SaveSettings()
-		end
-	end,
-})
-
-local function refreshConfigDropdown(new_name)
-	if not new_name or new_name == "" or new_name == "(none)" then return end
-	local function apply(dd)
-		if not dd or not dd.AddChoice then return end
-		dd:AddChoice(new_name)
-		dd.active = { new_name }
-		if dd.ActiveTextLabel then
-			dd.ActiveTextLabel.Text = new_name
-		end
-		if dd.UpdateSize then
-			dd:UpdateSize()
-		end
-	end
-	pcall(apply, ConfigDropdown)
-	pcall(apply, AutoConfigDropdown)
-end
-
-sections.settings_left:AddButton({
-	name = "save config",
-	callback = function()
-		local name = getConfigName()
-		local ok, err = Core:SaveConfig(name)
-		if ok then
-			Core.Settings.ConfigName = name
-			Core.Config.Selected = name
-			Core.Config.NameInput = name
-			Core:SaveSettings()
-			refreshConfigDropdown(name)
-			Notify("Config", "저장됨: " .. tostring(name))
-		else
-			Notify("Config", "저장 실패: " .. tostring(err))
-		end
-	end,
-})
-
-sections.settings_left:AddButton({
-	name = "load config",
-	callback = function()
-		local name = getConfigName()
-		local ok, err = Core:LoadConfig(name)
-		if ok then
-			applyLoadedConfig()
-			Core.Settings.ConfigName = name
-			Core:SaveSettings()
-			Notify("Config", "불러옴: " .. tostring(name))
-		else
-			Notify("Config", "불러오기 실패: " .. tostring(err))
-		end
-	end,
-})
-
-sections.settings_left:AddButton({
-	name = "delete config",
-	callback = function()
-		local name = getConfigName()
-		local ok, err = Core:DeleteConfig(name)
-		if ok then
-			Notify("Config", "삭제됨: " .. tostring(name))
-		else
-			Notify("Config", "삭제 실패: " .. tostring(err))
-		end
-	end,
-})
-
-sections.settings_left:AddButton({
-	name = "list configs",
-	callback = function()
-		local list = Core:ListConfigs()
-		if #list == 0 then
-			Notify("Config", "저장된 컨픽 없음")
-		else
-			Notify("Config", table.concat(list, ", "))
-		end
-	end,
-})
-
-sections.settings_left:AddButton({
+sections.settings_right:AddButton({
 	name = "copy discord",
 	callback = function()
 		if setclipboard then
@@ -4839,8 +4397,9 @@ sections.settings_left:AddButton({
 	end,
 })
 
---[[ AUTO QUEUE / REEXEC / AUTOLOAD ]]--
--- Flow: 플레이 → 1v1 → 매칭 대기 → (맵 이동 시 reexec+config) → 로비 복귀 후 반복
+--[[ AUTO QUEUE / REEXEC ]]--
+-- Flow: 플레이 → 1v1 → 매칭 대기 → (맵 이동 시 reexec) → 로비 복귀 후 반복
+-- Auto Queue ON일 때만 매치 입장 시 Kill All / Spin Bot / Render 자동 ON
 
 local DUEL_PLACE_IDS = {
 	[124848751642883] = "1v1",
@@ -5318,9 +4877,15 @@ local function autoQueueLoop()
 
 	while AutoQueueState.Running and Core.Settings.AutoQueue do
 		local ok, err = pcall(function()
-			-- 게임 중이면 큐 완전 정지 (같은 place 매치 포함)
+			-- 게임 중이면 큐 완전 정지 + 전투/렌더 ON
 			if isInMatch() or not canRunAutoQueue() then
 				AutoQueueState.Phase = "ingame"
+				if isInMatch() then
+					pcall(function()
+						local fn = getgenv()._SalboEnableMatchFeatures
+						if fn then fn() end
+					end)
+				end
 				task.wait(3)
 				return
 			end
@@ -5402,7 +4967,6 @@ local function setAutoQueueEnabled(enabled)
 
 	if enabled then
 		Core.Settings.AutoReexec = true
-		Core.Settings.AutoLoadConfig = true
 		Core:SaveSettings()
 		pcall(function()
 			if setupAutoReexec then setupAutoReexec() end
@@ -5531,11 +5095,6 @@ pcall(function()
 	Core:LoadSettings()
 end)
 
-if Core.Settings.ConfigName and Core.Settings.ConfigName ~= "" then
-	Core.Config.NameInput = Core.Settings.ConfigName
-	Core.Config.Selected = Core.Settings.ConfigName
-end
-
 AutoQueueToggle = sections.settings_right:AddToggle({
 	name = "Auto Queue 1v1",
 	default = Core.Settings.AutoQueue,
@@ -5572,63 +5131,6 @@ sections.settings_right:AddToggle({
 	end,
 })
 
-sections.settings_right:AddToggle({
-	name = "Auto Load Config",
-	default = Core.Settings.AutoLoadConfig,
-	callback = function(enabled)
-		Core.Settings.AutoLoadConfig = enabled and true or false
-		Core:SaveSettings()
-	end,
-})
-
-local function getAutoConfigList()
-	local list = {}
-	for _, name in ipairs(Core:ListConfigs()) do
-		local lower = string.lower(tostring(name))
-		-- hide script filenames from config picker
-		if not string.find(lower, "%.lua", 1, true)
-			and lower ~= "살보결 hub.lua"
-			and name ~= "(none)" then
-			table.insert(list, name)
-		end
-	end
-	if #list == 0 then
-		return { "(none)" }
-	end
-	return list
-end
-
-local function defaultAutoConfigIndex(list)
-	local want = tostring(Core.Settings.ConfigName or "")
-	for i, name in ipairs(list) do
-		if name == want then
-			return i
-		end
-	end
-	return 1
-end
-
-local autoConfigList = getAutoConfigList()
-AutoConfigDropdown = sections.settings_right:AddDropdown({
-	name = "auto load config",
-	list = autoConfigList,
-	default = defaultAutoConfigIndex(autoConfigList),
-	min = 0,
-	max = 1,
-	callback = function(selected)
-		if not selected or selected == "" or selected == "(none)" then return end
-		local name = tostring(selected):match("^([^,]+)") or selected
-		name = name:gsub("^%s+", ""):gsub("%s+$", "")
-		if name == "" or name == "(none)" then return end
-		if string.find(string.lower(name), "%.lua", 1, true) then return end
-		Core.Settings.ConfigName = name
-		Core.Config.NameInput = name
-		Core.Config.Selected = name
-		Core:SaveSettings()
-		Notify("Config", "자동 로드 대상: " .. name)
-	end,
-})
-
 sections.settings_right:AddButton({
 	name = "register reexec now",
 	callback = function()
@@ -5646,7 +5148,109 @@ sections.settings_right:AddButton({
 	end,
 })
 
--- Startup: reexec + autoload + autoqueue
+-- Startup: reexec + autoload + autoqueue + 매치 입장 시 전투/렌더 자동 ON
+local function forceToggleOn(toggle)
+	if not toggle or not toggle.UpdateState then return end
+	pcall(function()
+		toggle:UpdateState(false, true)
+		toggle:UpdateState(true, true)
+	end)
+end
+
+local function enableMatchFeatures()
+	-- Render 서브옵션 먼저 (PlayerESP 생성 시 값 반영)
+	Core.Features.PlayerESP.Box = true
+	Core.Features.PlayerESP.Tracer = true
+	Core.Features.PlayerESP.Skeleton = true
+	Core.Features.PlayerESP.Arrows = true
+	Core.Features.PlayerESP.Name = true
+	Core.Features.PlayerESP.RemoveHiddenCharacters = true
+
+	forceToggleOn(ESPBox)
+	forceToggleOn(ESPTracer)
+	forceToggleOn(ESPSkeleton)
+	forceToggleOn(ESPArrows)
+	forceToggleOn(ESPName)
+	forceToggleOn(ESPRemoveHidden)
+	forceToggleOn(PlayerESP)
+	forceToggleOn(Aura)
+
+	forceToggleOn(SpinBot)
+	forceToggleOn(KillAll)
+
+	print("[살보결] Match features ON KillAll=", Core.Connections.KillAll ~= nil,
+		"SpinBot=", Core.Connections.SpinBot ~= nil,
+		"ESP=", EspInstance ~= nil)
+end
+
+getgenv()._SalboEnableMatchFeatures = enableMatchFeatures
+
+local MatchFeatureState = {
+	WasInMatch = false,
+	LastEnable = 0,
+}
+
+local function onMaybeEnteredMatch(reason)
+	-- 자동매치(Auto Queue) 켰을 때만 KillAll/Spin/Render 자동 ON
+	if not Core.Settings.AutoQueue then
+		return
+	end
+	if not isInMatch() then
+		MatchFeatureState.WasInMatch = false
+		return
+	end
+	local now = tick()
+	-- 같은 매치에서 0.8초 안 중복 방지
+	if MatchFeatureState.WasInMatch and (now - MatchFeatureState.LastEnable) < 0.8 then
+		return
+	end
+	local firstEnter = not MatchFeatureState.WasInMatch
+	MatchFeatureState.WasInMatch = true
+	if not firstEnter and (now - MatchFeatureState.LastEnable) < 2 then
+		return
+	end
+	MatchFeatureState.LastEnable = now
+	print("[살보결] Match enter:", reason or "?")
+	task.defer(function()
+		task.wait(0.35)
+		enableMatchFeatures()
+		task.wait(0.8)
+		if isInMatch() then
+			enableMatchFeatures()
+		end
+	end)
+end
+
+local function startMatchFeatureWatcher()
+	pcall(function()
+		LocalPlayer:GetAttributeChangedSignal("Match"):Connect(function()
+			task.wait(0.2)
+			onMaybeEnteredMatch("MatchAttr")
+		end)
+	end)
+
+	task.spawn(function()
+		while true do
+			local inMatch = false
+			pcall(function()
+				inMatch = isInMatch()
+			end)
+			if inMatch then
+				onMaybeEnteredMatch("poll")
+			else
+				MatchFeatureState.WasInMatch = false
+			end
+			task.wait(1.25)
+		end
+	end)
+
+	-- 이미 매치 중이면 즉시
+	task.defer(function()
+		task.wait(1)
+		onMaybeEnteredMatch("startup")
+	end)
+end
+
 task.defer(function()
 	if Core.Settings.AutoReexec then
 		local ok, info = setupAutoReexec()
@@ -5657,48 +5261,7 @@ task.defer(function()
 		end
 	end
 
-	if Core.Settings.AutoLoadConfig then
-		local name = Core.Settings.ConfigName or getConfigName()
-		if name and name ~= "" and name ~= "(none)" then
-			task.wait(0.75)
-			local ok, err = Core:LoadConfig(name)
-			if ok then
-				applyLoadedConfig()
-				-- 캐릭터/리모트 준비 후 한 번 더 (매치 직후 로드 타이밍 흔들림 대비)
-				for _ = 1, 16 do
-					local remotes = Services.ReplicatedStorage:FindFirstChild("Remotes")
-					local shoot = remotes and remotes:FindFirstChild("ShootGun")
-					if LocalPlayer.Character and shoot then break end
-					task.wait(0.25)
-				end
-				applyLoadedConfig()
-				task.wait(0.5)
-				applyLoadedConfig()
-				Notify("Config", "자동 로드: " .. tostring(name))
-				print("[살보결] Auto Load Config ok:", name,
-					"KillAllConn=", Core.Connections.KillAll ~= nil,
-					"AutoShootConn=", Core.Connections.AutoShoot ~= nil)
-			else
-				print("[살보결] Auto Load Config failed:", err)
-			end
-		end
-	end
-
-	-- 매치 들어가거나 Match 붙을 때 전투 토글 재연결
-	pcall(function()
-		LocalPlayer:GetAttributeChangedSignal("Match"):Connect(function()
-			if not Core.Settings.AutoLoadConfig then return end
-			task.wait(0.4)
-			if Core.Features.KillAll.Enabled and not Core.Connections.KillAll and KillAll then
-				pcall(function() KillAll:UpdateState(false, true) end)
-				pcall(function() KillAll:UpdateState(true, true) end)
-			end
-			if Core.Features.AutoShoot.Enabled and not Core.Connections.AutoShoot and AutoShoot then
-				pcall(function() AutoShoot:UpdateState(false, true) end)
-				pcall(function() AutoShoot:UpdateState(true, true) end)
-			end
-		end)
-	end)
+	startMatchFeatureWatcher()
 
 	if Core.Settings.AutoQueue then
 		setAutoQueueEnabled(true)
