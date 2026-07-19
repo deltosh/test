@@ -2,10 +2,49 @@ if game:GetService("AdService"):FindFirstChild("Advertisement") then
 	game:GetService("AdService").Advertisement:Destroy()
 end
 
+-- 중복 실행 방지: 이전 허브 UI/루프 전부 제거
+local function destroyAllSalboHubs()
+	local function wipe(parent)
+		if not parent then return end
+		for _, gui in ipairs(parent:GetChildren()) do
+			local isHub = false
+			pcall(function()
+				if gui:GetAttribute("SalboHub") == true then
+					isHub = true
+				end
+			end)
+			if not isHub and gui:IsA("ScreenGui") then
+				local n = tostring(gui.Name)
+				if string.find(n, "살보결", 1, true) or n == "SalboHub" then
+					isHub = true
+				end
+			end
+			if isHub then
+				pcall(function() gui:Destroy() end)
+			end
+		end
+	end
+	pcall(function() wipe(game:GetService("CoreGui")) end)
+	pcall(function()
+		local lp = game:GetService("Players").LocalPlayer
+		if lp then wipe(lp:FindFirstChild("PlayerGui")) end
+	end)
+end
+
 if getgenv()._SalboCleanup then
 	pcall(getgenv()._SalboCleanup)
-	task.wait(0.15)
+	task.wait(0.1)
 end
+destroyAllSalboHubs()
+
+-- 거의 동시에 loadstring이 여러 번 돌면 마지막 것만 생존
+getgenv()._SalboBootGen = (getgenv()._SalboBootGen or 0) + 1
+local SALBO_BOOT_GEN = getgenv()._SalboBootGen
+task.wait(0.05)
+if getgenv()._SalboBootGen ~= SALBO_BOOT_GEN then
+	return
+end
+destroyAllSalboHubs()
 
 getgenv().Core = {}
 
@@ -139,8 +178,12 @@ local menu = {CurrentTab = nil}
 local SCREENGUI = Library:Create("ScreenGui", {
 Parent = _coregui,
 ZIndexBehavior = Enum.ZIndexBehavior.Global,
-Name = options.name
+Name = "SalboHub",
+ResetOnSpawn = false,
 }, True)
+pcall(function()
+SCREENGUI:SetAttribute("SalboHub", true)
+end)
 local WINDOW = Library:Create("Frame", {
 Parent = SCREENGUI,
 Size = options.size,
@@ -2533,8 +2576,21 @@ local window = AddWindow({
 	name = string.format('살보결 <font color="rgb(139, 158, 252)">[v%s]</font>', Core.Version),
 	size = UDim2.new(0, 625, 0, 480),
 })
+-- 동시 부팅 레이스에서 진 인스턴스는 UI 버리고 종료
+if getgenv()._SalboBootGen ~= SALBO_BOOT_GEN then
+	pcall(function()
+		if window.ScreenGui then window.ScreenGui:Destroy() end
+	end)
+	return
+end
 Core.HubWindow = window.Window
 Core.HubScreenGui = window.ScreenGui
+pcall(function()
+	if Core.HubScreenGui then
+		Core.HubScreenGui:SetAttribute("SalboHub", true)
+		Core.HubScreenGui.Name = "SalboHub"
+	end
+end)
 
 local tabs = {
 	Combat = window:AddTab({ name = "combat" }),
@@ -5065,51 +5121,68 @@ setupAutoReexec = function()
 
 	local path = resolveScriptPath()
 	local url = tostring(Core.Settings.ScriptUrl or ""):gsub("^%s+", ""):gsub("%s+$", "")
-	local payload
+	local body
 	local used
 
-	-- reexec 시 AutoQueue/매치기능 복원용 플래그 (수동 실행과 구분)
+	-- 텔레포트 직후 스크가 여러 번 큐돼도 1번만 실행
 	local header = [[
 getgenv()._SalboReexecFromQueue = true
 getgenv()._SalboAutoQueueSession = true
+if getgenv()._SalboTeleportLoadLock then return end
+getgenv()._SalboTeleportLoadLock = true
+task.delay(8, function()
+	getgenv()._SalboTeleportLoadLock = nil
+end)
 ]]
 
-	-- 로컬 파일 우선 (깃허브 d.lua는 구버전이라 Name 크래시/기능 누락)
 	if path then
-		payload = header .. string.format([[
+		body = string.format([[
 task.spawn(function()
 	local path = %q
 	local ok, err = pcall(function()
 		loadstring(readfile(path))()
 	end)
 	if not ok then
+		getgenv()._SalboTeleportLoadLock = nil
 		warn("[살보결] auto reexec failed:", err)
 	end
 end)
 ]], path)
 		used = path
 	elseif url ~= "" and (string.find(url, "http://", 1, true) == 1 or string.find(url, "https://", 1, true) == 1) then
-		payload = header .. string.format([[
+		body = string.format([[
 task.spawn(function()
 	local url = %q
 	local ok, err = pcall(function()
 		loadstring(game:HttpGet(url))()
 	end)
 	if not ok then
+		getgenv()._SalboTeleportLoadLock = nil
 		warn("[살보결] auto reexec HttpGet failed:", err)
 	end
 end)
 ]], url)
 		used = url
 	elseif getgenv()._SalboHubSource and type(getgenv()._SalboHubSource) == "string" and #getgenv()._SalboHubSource > 100 then
-		payload = header .. getgenv()._SalboHubSource
+		body = getgenv()._SalboHubSource
 		used = "embedded"
 	else
 		return false, "reexec url/파일 없음"
 	end
 
+	local payload = header .. body
+
+	-- 일부 익스큐터는 queue_on_teleport를 append → 동일 payload 재등록 스킵
+	if getgenv()._SalboLastQueuedPayload == payload then
+		return true, tostring(used) .. " (already)"
+	end
+	getgenv()._SalboLastQueuedPayload = payload
+
 	local ok, err = pcall(queueFn, payload)
-	if not ok then return false, err end
+	if not ok then
+		getgenv()._SalboLastQueuedPayload = nil
+		return false, err
+	end
 	return true, used
 end
 
@@ -5122,6 +5195,9 @@ end)
 
 local fromReexec = getgenv()._SalboReexecFromQueue == true
 getgenv()._SalboReexecFromQueue = nil
+-- 로드 성공 → 다음 텔레포트용 락/중복큐 플래그 해제
+getgenv()._SalboTeleportLoadLock = nil
+getgenv()._SalboLastQueuedPayload = nil
 
 if fromReexec then
 	-- 매치 텔레포트로 다시 뜬 경우: Auto Queue 세션 유지
@@ -5132,6 +5208,9 @@ else
 	getgenv()._SalboAutoQueueSession = nil
 	Core.Settings.AutoQueue = false
 end
+
+-- 토글 생성 시 callback이 돌며 reexec가 중복 등록되는 것 방지
+local suppressReexecRegister = true
 
 AutoQueueToggle = sections.settings_right:AddToggle({
 	name = "Auto Queue 1v1",
@@ -5156,6 +5235,7 @@ sections.settings_right:AddToggle({
 	callback = function(enabled)
 		Core.Settings.AutoReexec = enabled and true or false
 		Core:SaveSettings()
+		if suppressReexecRegister then return end
 		if enabled then
 			local ok, info = setupAutoReexec()
 			if ok then
@@ -5164,10 +5244,13 @@ sections.settings_right:AddToggle({
 				Notify("Auto Reexec", "실패: " .. tostring(info))
 			end
 		else
+			getgenv()._SalboLastQueuedPayload = nil
 			Notify("Auto Reexec", "꺼짐 (다음 이동부터)")
 		end
 	end,
 })
+
+suppressReexecRegister = false
 
 sections.settings_right:AddButton({
 	name = "register reexec now",
@@ -5400,6 +5483,14 @@ local function cleanup()
 	if getgenv()._OdysseyUnload then
 		pcall(getgenv()._OdysseyUnload)
 	end
+
+	-- 남은 허브 UI 강제 제거
+	pcall(function()
+		if Core.HubScreenGui then
+			Core.HubScreenGui:Destroy()
+		end
+	end)
+	pcall(destroyAllSalboHubs)
 
 	getgenv()._SalboCleanup = nil
 	getgenv()._OdysseyUnload = nil
