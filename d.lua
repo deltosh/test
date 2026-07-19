@@ -2207,23 +2207,32 @@ function Core:GetCharacter(player)
 end
 
 function Core:CanShoot()
-	local player_gui = LocalPlayer.PlayerGui
+	local player_gui = LocalPlayer:FindFirstChild("PlayerGui") or LocalPlayer.PlayerGui
 	if not player_gui then return true end
 
 	local round_countdown = player_gui:FindFirstChild("RoundCountdown")
-	
 	if not round_countdown or round_countdown.Enabled == false then
 		return true
 	end
 
 	local countdown_frame = round_countdown:FindFirstChild("CountdownFrame")
 	if not countdown_frame then return true end
+	-- 카운트다운 UI가 안 보이면 이미 라운드 시작 → 사격 허용 (Enabled만 남은 오탐 방지)
+	if countdown_frame:IsA("GuiObject") and not countdown_frame.Visible then
+		return true
+	end
 
 	local frame = countdown_frame:FindFirstChild("Frame")
 	if not frame then return true end
+	if frame:IsA("GuiObject") and not frame.Visible then
+		return true
+	end
 
 	local number = frame:FindFirstChild("Number")
 	if not number or not number.Text then return true end
+	if number:IsA("GuiObject") and not number.Visible then
+		return true
+	end
 
 	local value = tonumber(number.Text)
 	if not value then return true end
@@ -2753,12 +2762,34 @@ KillAll = sections.combat_left:AddToggle({
 			local shoot_time = 0
 			local delay = 6
 
+			-- 리스폰/새 라운드마다 첫 버스트 다시 가능하게
+			local function resetBurst()
+				shot = false
+				shoot_time = 0
+			end
+			pcall(function()
+				if Core.Connections.KillAllChar then
+					Core.Connections.KillAllChar:Disconnect()
+				end
+			end)
+			Core.Connections.KillAllChar = LocalPlayer.CharacterAdded:Connect(resetBurst)
+			pcall(function()
+				if Core.Connections.KillAllMatch then
+					Core.Connections.KillAllMatch:Disconnect()
+				end
+			end)
+			Core.Connections.KillAllMatch = LocalPlayer:GetAttributeChangedSignal("Match"):Connect(resetBurst)
+
 			Core.Connections.KillAll = Services.RunService.PreRender:Connect(function()
 				local now = tick()
 
 				for _, target in next, Services.Players:GetPlayers() do
-					if target:GetAttribute("Match") ~= LocalPlayer:GetAttribute("Match") then continue end
-					if target.Team == LocalPlayer.Team then continue end
+					if target == LocalPlayer then continue end
+					-- Team nil==nil 스킵 방지 (듀얼에서 팀이 비어 있을 때)
+					if LocalPlayer.Team and target.Team and target.Team == LocalPlayer.Team then continue end
+					local myMatch = LocalPlayer:GetAttribute("Match")
+					local theirMatch = target:GetAttribute("Match")
+					if myMatch ~= nil and theirMatch ~= nil and myMatch ~= theirMatch then continue end
 
 					local character = LocalPlayer.Character
 					if not character then continue end
@@ -2826,6 +2857,14 @@ KillAll = sections.combat_left:AddToggle({
 			if Core.Connections.KillAll then
 				Core.Connections.KillAll:Disconnect()
 				Core.Connections.KillAll = nil
+			end
+			if Core.Connections.KillAllChar then
+				Core.Connections.KillAllChar:Disconnect()
+				Core.Connections.KillAllChar = nil
+			end
+			if Core.Connections.KillAllMatch then
+				Core.Connections.KillAllMatch:Disconnect()
+				Core.Connections.KillAllMatch = nil
 			end
 		end
 	end
@@ -5625,7 +5664,15 @@ task.defer(function()
 			local ok, err = Core:LoadConfig(name)
 			if ok then
 				applyLoadedConfig()
-				task.wait(0.35)
+				-- 캐릭터/리모트 준비 후 한 번 더 (매치 직후 로드 타이밍 흔들림 대비)
+				for _ = 1, 16 do
+					local remotes = Services.ReplicatedStorage:FindFirstChild("Remotes")
+					local shoot = remotes and remotes:FindFirstChild("ShootGun")
+					if LocalPlayer.Character and shoot then break end
+					task.wait(0.25)
+				end
+				applyLoadedConfig()
+				task.wait(0.5)
 				applyLoadedConfig()
 				Notify("Config", "자동 로드: " .. tostring(name))
 				print("[살보결] Auto Load Config ok:", name,
@@ -5636,6 +5683,22 @@ task.defer(function()
 			end
 		end
 	end
+
+	-- 매치 들어가거나 Match 붙을 때 전투 토글 재연결
+	pcall(function()
+		LocalPlayer:GetAttributeChangedSignal("Match"):Connect(function()
+			if not Core.Settings.AutoLoadConfig then return end
+			task.wait(0.4)
+			if Core.Features.KillAll.Enabled and not Core.Connections.KillAll and KillAll then
+				pcall(function() KillAll:UpdateState(false, true) end)
+				pcall(function() KillAll:UpdateState(true, true) end)
+			end
+			if Core.Features.AutoShoot.Enabled and not Core.Connections.AutoShoot and AutoShoot then
+				pcall(function() AutoShoot:UpdateState(false, true) end)
+				pcall(function() AutoShoot:UpdateState(true, true) end)
+			end
+		end)
+	end)
 
 	if Core.Settings.AutoQueue then
 		setAutoQueueEnabled(true)
