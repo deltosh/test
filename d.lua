@@ -2725,31 +2725,6 @@ local function disconnectFeature(name)
 	end
 end
 
--- 총 하나만 장착 (Kill All이 전부 꺼내서 AutoShoot 망가뜨리던 문제 방지)
-local function equipGun(character)
-	if not character then return nil end
-	local equipped = nil
-	for _, tool in next, character:GetChildren() do
-		if tool:IsA("Tool") and tool:GetAttribute("Cooldown") ~= nil then
-			tool:SetAttribute("Cooldown", 0)
-			equipped = tool
-		end
-	end
-	if equipped then
-		return equipped
-	end
-	local backpack = LocalPlayer:FindFirstChild("Backpack")
-	if not backpack then return nil end
-	for _, gun in next, backpack:GetChildren() do
-		if gun:IsA("Tool") and gun:GetAttribute("Cooldown") ~= nil then
-			gun:SetAttribute("Cooldown", 0)
-			gun.Parent = character
-			return gun
-		end
-	end
-	return nil
-end
-
 local function getShootGun()
 	local remotes = Services.ReplicatedStorage:FindFirstChild("Remotes")
 	if not remotes then return nil end
@@ -2759,13 +2734,11 @@ end
 local function fireShootGun(shoot_gun, hitPart)
 	if not shoot_gun or not hitPart then return end
 	local pos = hitPart.Position
-	-- 예전에 되던 시그니처
 	getgenv()._SalboOwnShot = true
 	local ok = pcall(function()
 		shoot_gun:FireServer(pos, pos, hitPart, pos)
 	end)
 	if not ok then
-		-- 일부 빌드 호환
 		pcall(function()
 			shoot_gun:FireServer(pos, hitPart, pos)
 		end)
@@ -2776,80 +2749,92 @@ local function fireShootGun(shoot_gun, hitPart)
 	getgenv()._SalboOwnShot = false
 end
 
-local function isKillAllTarget(target)
-	if target == LocalPlayer then return false end
-	local myMatch = LocalPlayer:GetAttribute("Match")
-	local theirMatch = target:GetAttribute("Match")
-	if myMatch ~= nil and theirMatch ~= nil and myMatch ~= theirMatch then
-		return false
-	end
-	if LocalPlayer.Team ~= nil and target.Team ~= nil and target.Team == LocalPlayer.Team then
-		return false
-	end
-	return true
-end
-
+-- UI 밝게 하기 직전 원본 Kill All
 KillAll = sections.combat_left:AddToggle({
 	name = "Kill All",
 	default = Core.Features.KillAll.Enabled,
 	callback = function(enabled)
-		Core.Features.KillAll.Enabled = enabled and true or false
-		disconnectFeature("KillAll")
+		Core.Features.KillAll.Enabled = enabled
 
-		if not enabled then
-			return
-		end
+		if enabled then
+			local shot = false
+			local shoot_time = 0
+			local delay = 6
 
-		local shot = false
-		local shoot_time = 0
-		local delay = 6
+			Core.Connections.KillAll = Services.RunService.PreRender:Connect(function()
+				local now = tick()
 
-		Core.Connections.KillAll = Services.RunService.PreRender:Connect(function()
-			if not Core.Features.KillAll.Enabled then return end
-			local now = tick()
+				for _, target in next, Services.Players:GetPlayers() do
+					if target:GetAttribute("Match") ~= LocalPlayer:GetAttribute("Match") then continue end
+					if target.Team == LocalPlayer.Team then continue end
 
-			local character = LocalPlayer.Character
-			if not character then return end
+					local character = LocalPlayer.Character
+					if not character then continue end
 
-			local player_humanoid = character:FindFirstChildOfClass("Humanoid")
-			if not player_humanoid or player_humanoid.Health <= 0 then return end
+					local player_humanoid_root_part = character:FindFirstChild("HumanoidRootPart")
+					if not player_humanoid_root_part then continue end
 
-			local shoot_gun = getShootGun()
-			if not shoot_gun then return end
+					local player_humanoid = character:FindFirstChild("Humanoid")
+					if not player_humanoid or player_humanoid.Health <= 0 then continue end
 
-			local backpack = LocalPlayer:FindFirstChild("Backpack")
-			if backpack then
-				for _, gun in next, backpack:GetChildren() do
-					if gun:GetAttribute("Cooldown") ~= nil then
-						gun:SetAttribute("Cooldown", 0)
-						gun.Parent = character
-						break
-					end
-				end
-			end
-
-			for _, target in next, Services.Players:GetPlayers() do
-				if isKillAllTarget(target) then
 					local target_character = target.Character
-					if target_character then
-						local humanoid = target_character:FindFirstChildOfClass("Humanoid")
-						local humanoid_root_part = target_character:FindFirstChild("HumanoidRootPart")
-						if humanoid and humanoid.Health > 0 and humanoid_root_part then
-							if not shot then
-								for _ = 1, 5 do
-									fireShootGun(shoot_gun, humanoid_root_part)
-								end
-								shot = true
-								shoot_time = now
-								break
-							elseif (now - shoot_time) >= delay then
-								fireShootGun(shoot_gun, humanoid_root_part)
+					if not target_character then continue end
+
+					local humanoid = target_character:FindFirstChild("Humanoid")
+					if not humanoid or humanoid.Health <= 0 then continue end
+
+					local humanoid_root_part = target_character:FindFirstChild("HumanoidRootPart")
+					if not humanoid_root_part then continue end
+
+					local backpack = LocalPlayer.Backpack
+					if not backpack then continue end
+
+					local remotes = Services.ReplicatedStorage:FindFirstChild("Remotes")
+					if not remotes then continue end
+
+					local shoot_gun = remotes:FindFirstChild("ShootGun")
+					if not shoot_gun then continue end
+
+					for _, gun in next, backpack:GetChildren() do
+						if gun:GetAttribute("Cooldown") then
+							gun:SetAttribute("Cooldown", 0)
+							gun.Parent = character
+						end
+					end
+
+					if Core:CanShoot() then
+						if not shot then
+							for i = 1, 5 do
+								local args = {
+									humanoid_root_part.Position,
+									humanoid_root_part.Position,
+									humanoid_root_part,
+									humanoid_root_part.Position
+								}
+								shoot_gun:FireServer(unpack(args))
 							end
+
+							shot = true
+							shoot_time = now
+							break
+						elseif shot and (now - shoot_time >= delay) then
+							local args = {
+								humanoid_root_part.Position,
+								humanoid_root_part.Position,
+								humanoid_root_part,
+								humanoid_root_part.Position
+							}
+							shoot_gun:FireServer(unpack(args))
 						end
 					end
 				end
+			end)
+		else
+			if Core.Connections.KillAll then
+				Core.Connections.KillAll:Disconnect()
+				Core.Connections.KillAll = nil
 			end
-		end)
+		end
 	end
 })
 bindKey(KillAll)
@@ -2867,7 +2852,6 @@ AutoShoot = sections.combat_left:AddToggle({
 
 		Core.Connections.AutoShoot = Services.RunService.PreRender:Connect(function()
 			if not Core.Features.AutoShoot.Enabled then return end
-			if Core.Features.KillAll.Enabled then return end
 
 			local character = LocalPlayer.Character
 			if not character then return end
