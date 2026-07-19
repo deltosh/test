@@ -2207,25 +2207,26 @@ function Core:GetCharacter(player)
 end
 
 function Core:CanShoot()
-	local player_gui = LocalPlayer:FindFirstChild("PlayerGui") or LocalPlayer.PlayerGui
-	if not player_gui then return false end
+	local player_gui = LocalPlayer.PlayerGui
+	if not player_gui then return true end
 
 	local round_countdown = player_gui:FindFirstChild("RoundCountdown")
+
 	if not round_countdown or round_countdown.Enabled == false then
-		return false
+		return true
 	end
 
 	local countdown_frame = round_countdown:FindFirstChild("CountdownFrame")
-	if not countdown_frame then return false end
+	if not countdown_frame then return true end
 
 	local frame = countdown_frame:FindFirstChild("Frame")
-	if not frame then return false end
+	if not frame then return true end
 
 	local number = frame:FindFirstChild("Number")
-	if not number or not number.Text then return false end
+	if not number or not number.Text then return true end
 
 	local value = tonumber(number.Text)
-	if not value then return false end
+	if not value then return true end
 
 	return value <= 2
 end
@@ -2780,13 +2781,13 @@ local function equipShootTool(character)
 	return nil
 end
 
--- No Fog 추가 시점 원본 (1.lua) Kill All
+-- 작동되던 스크 원본.txt Kill All 그대로
 KillAll = sections.combat_left:AddToggle({
 	name = "Kill All",
 	default = Core.Features.KillAll.Enabled,
 	callback = function(enabled)
 		Core.Features.KillAll.Enabled = enabled
-
+		
 		if enabled then
 			local shot = false
 			local shoot_time = 0
@@ -2825,7 +2826,7 @@ KillAll = sections.combat_left:AddToggle({
 
 					local shoot_gun = remotes:FindFirstChild("ShootGun")
 					if not shoot_gun then continue end
-
+					
 					for _, gun in next, backpack:GetChildren() do
 						if gun:GetAttribute("Cooldown") then
 							gun:SetAttribute("Cooldown", 0)
@@ -2860,6 +2861,7 @@ KillAll = sections.combat_left:AddToggle({
 					end
 				end
 			end)
+
 		else
 			if Core.Connections.KillAll then
 				Core.Connections.KillAll:Disconnect()
@@ -2921,17 +2923,15 @@ SilentAim = sections.combat_left:AddToggle({
 bindKey(SilentAim)
 
 local namecall; namecall = hookmetamethod(game, "__namecall", function(self, ...)
-	local args = { ... }
+	local args = {...}
 	local method = getnamecallmethod()
 
-	-- No Fog 시점 Silent Aim (1.lua) — checkcaller 스크립트 발사는 건드리지 않음
 	if not Core.Features.SilentAim.Enabled then
 		return namecall(self, ...)
 	end
 
 	if not checkcaller() and method == "FireServer" then
-		local remoteName = self and self.Name
-		if remoteName == "ShootGun" or remoteName == "ThrowHit" then
+		if self.Name == "ShootGun" or self.Name == "ThrowHit" then
 			local closest = Core:GetClosest({
 				range = Core.Features.SilentAim.Range,
 				wall_check = Core.Features.SilentAim.WallCheck,
@@ -2939,22 +2939,23 @@ local namecall; namecall = hookmetamethod(game, "__namecall", function(self, ...
 			})
 
 			if closest then
-				local head = closest:FindFirstChild("Head")
+				local head = closest.FindFirstChild(closest, "Head")
 				if head then
-					if remoteName == "ShootGun" and typeof(args[1]) == "Vector3" then
+					if self.Name == "ShootGun" then
 						args[1] = head.Position
 						args[2] = head.Position
 						args[3] = head
 						args[4] = head.Position
-					elseif remoteName == "ThrowHit" then
+
+					elseif self.Name == "ThrowHit" then
 						args[1] = head
 						args[2] = head.Position
 					end
 				end
 			end
-
-			return namecall(self, unpack(args))
 		end
+
+		return namecall(self, unpack(args))
 	end
 
 	return namecall(self, unpack(args))
