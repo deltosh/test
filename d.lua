@@ -4739,20 +4739,31 @@ local function isDuelPlace()
 end
 
 local function isInMatch()
-	-- Only real match/teleport — lobby often has Match attr / RoundCountdown instances disabled
-	if isDuelPlace() then return true end
+	-- 로비 PlaceId에서는 매치로 보지 않음
+	if LOBBY_PLACE_IDS[game.PlaceId] then
+		return false
+	end
+	if isDuelPlace() then
+		return true
+	end
 
 	local m = LocalPlayer:GetAttribute("Match")
 	if type(m) == "string" and #m > 0 then return true end
 	if type(m) == "number" and m ~= 0 then return true end
 	if m == true then return true end
 
+	-- RoundCountdown.Enabled 만으로는 로비 오탐이 많음 → 실제 보이는 숫자만
 	local pg = LocalPlayer:FindFirstChild("PlayerGui")
 	if pg then
 		local rc = pg:FindFirstChild("RoundCountdown")
-		if rc then
-			if rc:IsA("LayerCollector") and rc.Enabled == true then return true end
-			if rc:IsA("GuiObject") and rc.Visible == true and rc.AbsoluteSize.X > 0 then return true end
+		if rc and rc:IsA("LayerCollector") and rc.Enabled == true then
+			local number = rc:FindFirstChild("Number", true)
+			if number and number:IsA("TextLabel") and number.Visible then
+				local value = tonumber(number.Text)
+				if value and value >= 1 then
+					return true
+				end
+			end
 		end
 	end
 	return false
@@ -4864,24 +4875,22 @@ local function clickGui(inst)
 
 	task.wait(0.1)
 
-	-- 버튼 한 번만 발동 (부모 체인 연타 금지)
-	local fired = fireConnections(target)
-	if not fired then
-		pcall(function()
-			local vim = game:GetService("VirtualInputManager")
-			local inset = game:GetService("GuiService"):GetGuiInset()
-			local pos = target.AbsolutePosition
-			local size = target.AbsoluteSize
-			if size.X <= 0 or size.Y <= 0 then return end
-			local x = pos.X + size.X * 0.5
-			local y = pos.Y + size.Y * 0.5 + inset.Y
-			vim:SendMouseMoveEvent(x, y, game)
-			task.wait(0.03)
-			vim:SendMouseButtonEvent(x, y, 0, true, game, 1)
-			task.wait(0.05)
-			vim:SendMouseButtonEvent(x, y, 0, false, game, 1)
-		end)
-	end
+	-- connections + VIM 둘 다 (한쪽만으론 안 먹는 경우 있음)
+	fireConnections(target)
+	pcall(function()
+		local vim = game:GetService("VirtualInputManager")
+		local inset = game:GetService("GuiService"):GetGuiInset()
+		local pos = target.AbsolutePosition
+		local size = target.AbsoluteSize
+		if size.X <= 0 or size.Y <= 0 then return end
+		local x = pos.X + size.X * 0.5
+		local y = pos.Y + size.Y * 0.5 + inset.Y
+		vim:SendMouseMoveEvent(x, y, game)
+		task.wait(0.03)
+		vim:SendMouseButtonEvent(x, y, 0, true, game, 1)
+		task.wait(0.05)
+		vim:SendMouseButtonEvent(x, y, 0, false, game, 1)
+	end)
 
 	if win and oldPos then
 		pcall(function()
@@ -4962,34 +4971,22 @@ local function isQueueSearching()
 		end
 		if hudOn then
 			local searching = qhud:FindFirstChild("SearchingFrame", true)
-			if searching and searching:IsA("GuiObject") then
-				if searching.Visible or searching.AbsoluteSize.X > 0 or searching.AbsoluteSize.Y > 0 then
+			-- Visible==true 일 때만 (숨겨진 프레임 AbsoluteSize 오탐 제거)
+			if searching and searching:IsA("GuiObject") and searching.Visible == true then
+				if searching.AbsoluteSize.X > 0 and searching.AbsoluteSize.Y > 0 then
 					return true
 				end
 			end
 			for _, d in ipairs(qhud:GetDescendants()) do
-				if d:IsA("TextLabel") or d:IsA("TextButton") then
+				if (d:IsA("TextLabel") or d:IsA("TextButton")) and d.Visible == true then
 					local t = normalizeGuiText(d.Text)
-					if string.find(t, "찾고", 1, true)
-						or string.find(t, "searching", 1, true)
-						or string.find(t, "finding", 1, true)
-						or (string.find(t, "1v1", 1, true) and string.match(t, "%d+:%d+"))
+					if string.find(t, "찾고 있습니다", 1, true)
+						or string.find(t, "searching for", 1, true)
+						or string.find(t, "finding players", 1, true)
 					then
 						return true
 					end
 				end
-			end
-		end
-	end
-
-	for _, d in ipairs(pg:GetDescendants()) do
-		if (d:IsA("TextLabel") or d:IsA("TextButton")) and isVisibleGui(d) then
-			local t = normalizeGuiText(d.Text)
-			if string.find(t, "찾고 있습니다", 1, true)
-				or string.find(t, "플레이어들 찾고", 1, true)
-				or string.find(t, "searching for", 1, true)
-			then
-				return true
 			end
 		end
 	end
@@ -5111,18 +5108,17 @@ end
 
 local function waitForMatchOrQueue(timeoutSec)
 	local startT = tick()
-	timeoutSec = timeoutSec or 600
+	timeoutSec = timeoutSec or 180
 	local lastSawSearch = isQueueSearching() and tick() or 0
 	local joinErrChecked = false
 
-	AutoQueueState.Lock = true
+	-- 대기 내내 Lock 하지 않음 (토글/클릭이 멈추는 문제 방지)
 	AutoQueueState.Phase = "wait"
 
 	while AutoQueueState.Running and Core.Settings.AutoQueue and (tick() - startT) < timeoutSec do
 		if isInMatch() then
 			Notify("Auto Queue", "매칭됨 — 맵 이동")
-			task.wait(5)
-			AutoQueueState.Lock = false
+			task.wait(3)
 			return true
 		end
 
@@ -5133,59 +5129,53 @@ local function waitForMatchOrQueue(timeoutSec)
 			local elapsed = tick() - startT
 			local sinceSearch = (lastSawSearch > 0) and (tick() - lastSawSearch) or elapsed
 
-			-- 한 번이라도 검색 UI를 봤으면 15초 깜빡임은 무시하고 계속 대기
-			if lastSawSearch > 0 and sinceSearch < 15 then
+			if lastSawSearch > 0 and sinceSearch < 12 then
 				task.wait(1)
-			elseif lastSawSearch == 0 and elapsed < 10 then
-				if not joinErrChecked and elapsed >= 1.2 and elapsed <= 6 and hasJoinErrorToast() then
+			elseif lastSawSearch == 0 and elapsed < 8 then
+				if not joinErrChecked and elapsed >= 1.0 and elapsed <= 5 and hasJoinErrorToast() then
 					joinErrChecked = true
-					Notify("Auto Queue", "큐 거절됨 — 잠시 후 재시도")
+					Notify("Auto Queue", "큐 거절됨 — 재시도")
 					print("[살보결] AutoQueue join rejected")
-					task.wait(6)
-					AutoQueueState.Lock = false
+					task.wait(4)
 					return false
 				end
-				task.wait(0.5)
+				task.wait(0.4)
 			else
 				print("[살보결] AutoQueue wait end (not searching)")
-				AutoQueueState.Lock = false
 				return false
 			end
 		end
 	end
 
-	AutoQueueState.Lock = false
 	return isInMatch()
 end
 
 local function autoQueueLoop()
 	Notify("Auto Queue", "시작: 플레이 → 1v1 → 대기")
-	print("[살보결] AutoQueue start place=", game.PlaceId, "inMatch=", isInMatch())
+	print("[살보결] AutoQueue start place=", game.PlaceId, "inMatch=", isInMatch(), "searching=", isQueueSearching())
 
 	while AutoQueueState.Running and Core.Settings.AutoQueue do
 		local ok, err = pcall(function()
 			if isInMatch() then
-				print("[살보결] AutoQueue waiting (in match)")
-				AutoQueueState.Phase = "play"
-				task.wait(4)
+				print("[살보결] AutoQueue in match — idle")
+				task.wait(5)
 				return
 			end
 
 			if isQueueSearching() then
-				print("[살보결] AutoQueue already searching — waiting")
-				Notify("Auto Queue", "매칭 검색 중... 대기")
-				waitForMatchOrQueue(600)
+				print("[살보결] AutoQueue searching — wait")
+				Notify("Auto Queue", "매칭 검색 중...")
+				waitForMatchOrQueue(180)
 				return
 			end
 
 			local now = tick()
-			if (AutoQueueState.LastAttempt or 0) > 0 and (now - AutoQueueState.LastAttempt) < 5 then
-				task.wait(0.5)
+			if (AutoQueueState.LastAttempt or 0) > 0 and (now - AutoQueueState.LastAttempt) < 2.5 then
+				task.wait(0.3)
 				return
 			end
 
 			if not isModeMenuOpen() then
-				AutoQueueState.Phase = "play"
 				local playBtn = findTextButtonExact("플레이", { preferSmall = false, contains = true })
 				if not playBtn then
 					playBtn = findTextButtonExact("play", { preferSmall = false, contains = true })
@@ -5195,20 +5185,19 @@ local function autoQueueLoop()
 					Notify("Auto Queue", "1) 플레이")
 					print("[살보결] click play", playBtn:GetFullName())
 					clickGui(playBtn)
-					for _ = 1, 28 do
+					for _ = 1, 20 do
 						if not AutoQueueState.Running then return end
 						if isModeMenuOpen() or isQueueSearching() then break end
-						task.wait(0.25)
+						task.wait(0.2)
 					end
 				else
-					Notify("Auto Queue", "플레이 버튼 없음")
 					print("[살보결] play not found")
+					Notify("Auto Queue", "플레이 버튼 없음")
 					task.wait(2)
 				end
 				return
 			end
 
-			AutoQueueState.Phase = "mode"
 			local btn1 = findTextButtonExact("1v1", {
 				preferSmall = true,
 				skipBeginner = true,
@@ -5223,19 +5212,16 @@ local function autoQueueLoop()
 				print("[살보결] click 1v1", btn1:GetFullName())
 				clickGui(btn1)
 				Notify("Auto Queue", "3) 매칭 대기...")
-				local okWait = waitForMatchOrQueue(600)
-				AutoQueueState.Phase = "play"
+				local okWait = waitForMatchOrQueue(120)
 				if not okWait then
-					task.wait(5)
-				else
-					task.wait(2)
+					task.wait(3)
 				end
 				return
 			end
 
-			Notify("Auto Queue", "1v1 버튼 없음")
-			print("[살보결] 1v1 not found")
-			task.wait(2)
+			print("[살보결] 1v1 not found — reopen play")
+			-- 모드 메뉴가 이상하면 잠시 후 플레이부터 다시
+			task.wait(1.5)
 		end)
 
 		if not ok then
