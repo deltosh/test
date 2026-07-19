@@ -2637,8 +2637,7 @@ local function disconnectFeature(name)
 	end
 end
 
--- Kill All: AutoShoot과 같은 발사 방식 + 전원 타격
--- (자동시작 시 카운트다운에 shot=true 고착되던 버스트 로직 제거)
+-- Kill All: 매치 필터/카운트다운에 막히지 않게 (1v1 상대만)
 KillAll = sections.combat_left:AddToggle({
 	name = "Kill All",
 	default = Core.Features.KillAll.Enabled,
@@ -2659,19 +2658,8 @@ KillAll = sections.combat_left:AddToggle({
 		end
 
 		if not enabled then
-			getgenv()._SalboResetKillAllBurst = nil
 			return
 		end
-
-		local lastCanShoot = false
-
-		local function resetBurst()
-			lastCanShoot = false
-		end
-		getgenv()._SalboResetKillAllBurst = resetBurst
-
-		Core.Connections.KillAllChar = LocalPlayer.CharacterAdded:Connect(resetBurst)
-		Core.Connections.KillAllMatch = LocalPlayer:GetAttributeChangedSignal("Match"):Connect(resetBurst)
 
 		Core.Connections.KillAll = Services.RunService.Heartbeat:Connect(function()
 			if not Core.Features.KillAll.Enabled then return end
@@ -2682,20 +2670,12 @@ KillAll = sections.combat_left:AddToggle({
 			local player_humanoid = character:FindFirstChildOfClass("Humanoid")
 			if not player_humanoid or player_humanoid.Health <= 0 then return end
 
-			local can = Core:CanShoot()
-			-- 사격 불→가능 전환 시(라운드 시작) 바로 발사 재개
-			if can and not lastCanShoot then
-				lastCanShoot = true
-			elseif not can then
-				lastCanShoot = false
-				return
-			end
-
 			local remotes = Services.ReplicatedStorage:FindFirstChild("Remotes")
 			if not remotes then return end
 			local shoot_gun = remotes:FindFirstChild("ShootGun")
 			if not shoot_gun then return end
 
+			-- 총 장착 (Cooldown 0 포함)
 			local backpack = LocalPlayer:FindFirstChild("Backpack")
 			if backpack then
 				for _, gun in next, backpack:GetChildren() do
@@ -2715,30 +2695,36 @@ KillAll = sections.combat_left:AddToggle({
 			end
 
 			local fired = false
-			for _, target in next, Services.Players:GetPlayers() do
-				if target == LocalPlayer then continue end
-				if LocalPlayer.Team and target.Team and target.Team == LocalPlayer.Team then continue end
+			local function tryShoot(ignoreTeam)
+				for _, target in next, Services.Players:GetPlayers() do
+					if target == LocalPlayer then continue end
+					if not ignoreTeam then
+						if LocalPlayer.Team and target.Team and target.Team == LocalPlayer.Team then
+							continue
+						end
+					end
 
-				local myMatch = LocalPlayer:GetAttribute("Match")
-				local theirMatch = target:GetAttribute("Match")
-				if myMatch ~= nil and theirMatch ~= nil and myMatch ~= theirMatch then continue end
+					local target_character = target.Character
+					if not target_character then continue end
 
-				local target_character = target.Character
-				if not target_character then continue end
+					local humanoid = target_character:FindFirstChildOfClass("Humanoid")
+					if not humanoid or humanoid.Health <= 0 then continue end
 
-				local humanoid = target_character:FindFirstChildOfClass("Humanoid")
-				if not humanoid or humanoid.Health <= 0 then continue end
+					local hit = target_character:FindFirstChild("HumanoidRootPart")
+						or target_character:FindFirstChild("Head")
+					if not hit then continue end
 
-				-- AutoShoot과 동일: Head 우선 (서버 판정)
-				local hit = target_character:FindFirstChild("Head")
-					or target_character:FindFirstChild("HumanoidRootPart")
-				if not hit then continue end
-
-				local pos = hit.Position
-				for _ = 1, 3 do
-					shoot_gun:FireServer(pos, pos, hit, pos)
+					local pos = hit.Position
+					for _ = 1, 5 do
+						shoot_gun:FireServer(pos, pos, hit, pos)
+					end
+					fired = true
 				end
-				fired = true
+			end
+
+			tryShoot(false)
+			if not fired then
+				tryShoot(true) -- 팀 판정 때문에 0명이면 전원 시도
 			end
 
 			if fired and equipped then
@@ -4917,8 +4903,12 @@ local function autoQueueLoop()
 				wasInMatch = true
 				if isInMatch() then
 					pcall(function()
-						local fn = getgenv()._SalboEnableMatchFeatures
-						if fn then fn() end
+						if Core.Connections.KillAll == nil then
+							local fn = getgenv()._SalboEnableMatchFeatures
+							if typeof(fn) == "function" then
+								fn()
+							end
+						end
 					end)
 				end
 				-- Match 속성이 풀릴 때까지 폴링 (한판 끝나면 바로 재큐)
@@ -5271,8 +5261,26 @@ local function forceToggleOn(toggle)
 	end)
 end
 
+local MatchFeatureState = {
+	WasInMatch = false,
+	LastEnable = 0,
+	LastMatchToken = nil,
+	AppliedToken = nil,
+}
+
 local function enableMatchFeatures()
-	-- Render 서브옵션 먼저 (PlayerESP 생성 시 값 반영)
+	local token = tostring(LocalPlayer:GetAttribute("Match") or "inmatch")
+	local now = tick()
+	if MatchFeatureState.AppliedToken == token
+		and Core.Connections.KillAll ~= nil
+		and (now - (MatchFeatureState.LastEnable or 0)) < 20
+	then
+		return
+	end
+
+	MatchFeatureState.LastEnable = now
+	MatchFeatureState.AppliedToken = token
+
 	Core.Features.PlayerESP.Box = true
 	Core.Features.PlayerESP.Tracer = true
 	Core.Features.PlayerESP.Skeleton = true
@@ -5280,56 +5288,23 @@ local function enableMatchFeatures()
 	Core.Features.PlayerESP.Name = true
 	Core.Features.PlayerESP.RemoveHiddenCharacters = true
 
-	forceToggleOn(ESPBox)
-	forceToggleOn(ESPTracer)
-	forceToggleOn(ESPSkeleton)
-	forceToggleOn(ESPArrows)
-	forceToggleOn(ESPName)
-	forceToggleOn(ESPRemoveHidden)
-	forceToggleOn(PlayerESP)
-	forceToggleOn(Aura)
+	pcall(function() forceToggleOn(ESPBox) end)
+	pcall(function() forceToggleOn(ESPTracer) end)
+	pcall(function() forceToggleOn(ESPSkeleton) end)
+	pcall(function() forceToggleOn(ESPArrows) end)
+	pcall(function() forceToggleOn(ESPName) end)
+	pcall(function() forceToggleOn(ESPRemoveHidden) end)
+	pcall(function() forceToggleOn(PlayerESP) end)
+	pcall(function() forceToggleOn(Aura) end)
+	pcall(function() forceToggleOn(SpinBot) end)
+	pcall(function() forceToggleOn(KillAll) end)
 
-	forceToggleOn(SpinBot)
-
-	-- Kill All은 사격 가능해질 때까지 기다렸다가 켬 (카운트다운 중 켜면 헛발사)
-	task.spawn(function()
-		local enabledAt = tick()
-		while (tick() - enabledAt) < 12 do
-			if not (Core.Settings.AutoQueue or getgenv()._SalboAutoQueueSession) then
-				return
-			end
-			if not isInMatch() then
-				task.wait(0.2)
-			elseif Core:CanShoot() then
-				break
-			else
-				task.wait(0.15)
-			end
-		end
-		if not (Core.Settings.AutoQueue or getgenv()._SalboAutoQueueSession) then
-			return
-		end
-		forceToggleOn(KillAll)
-		pcall(function()
-			local reset = getgenv()._SalboResetKillAllBurst
-			if typeof(reset) == "function" then
-				reset()
-			end
-		end)
-		print("[살보결] KillAll armed conn=", Core.Connections.KillAll ~= nil)
-	end)
-
-	print("[살보결] Match features ON SpinBot=", Core.Connections.SpinBot ~= nil,
+	print("[살보결] Match features ON KillAll=", Core.Connections.KillAll ~= nil,
+		"SpinBot=", Core.Connections.SpinBot ~= nil,
 		"ESP=", EspInstance ~= nil)
 end
 
 getgenv()._SalboEnableMatchFeatures = enableMatchFeatures
-
-local MatchFeatureState = {
-	WasInMatch = false,
-	LastEnable = 0,
-	LastMatchToken = nil,
-}
 
 local function getMatchToken()
 	local m = LocalPlayer:GetAttribute("Match")
@@ -5340,7 +5315,6 @@ local function getMatchToken()
 end
 
 local function onMaybeEnteredMatch(reason)
-	-- Auto Queue 세션(버튼 ON 또는 텔레포트 reexec)일 때만 자동 ON
 	local wantFeatures = Core.Settings.AutoQueue or getgenv()._SalboAutoQueueSession == true
 	if not wantFeatures then
 		return
@@ -5348,44 +5322,29 @@ local function onMaybeEnteredMatch(reason)
 	if not isInMatch() then
 		MatchFeatureState.WasInMatch = false
 		MatchFeatureState.LastMatchToken = nil
+		MatchFeatureState.AppliedToken = nil
 		return
 	end
 
 	local now = tick()
-	local token = getMatchToken()
-	local newMatch = token ~= nil and token ~= MatchFeatureState.LastMatchToken
-	local killAllDead = Core.Connections.KillAll == nil
+	local token = getMatchToken() or "inmatch"
+	local newMatch = token ~= MatchFeatureState.LastMatchToken
 
-	-- 같은 매치에서 중복 방지 (토큰이 같으면 스킵) — 단 Kill All이 꺼져 있으면 재적용
-	if MatchFeatureState.WasInMatch and not newMatch and not killAllDead and (now - MatchFeatureState.LastEnable) < 8 then
+	if MatchFeatureState.WasInMatch and not newMatch and Core.Connections.KillAll ~= nil then
 		return
 	end
-
-	-- 매치 토큰 없이 "in match"만 유지 + 이미 기능 켜짐 → 스킵
-	if MatchFeatureState.WasInMatch and not newMatch and token == nil and not killAllDead then
+	if MatchFeatureState.WasInMatch and not newMatch and (now - MatchFeatureState.LastEnable) < 3 then
 		return
 	end
 
 	MatchFeatureState.WasInMatch = true
-	if token ~= nil then
-		MatchFeatureState.LastMatchToken = token
-	end
+	MatchFeatureState.LastMatchToken = token
 	MatchFeatureState.LastEnable = now
-	print("[살보결] Match enter:", reason or "?", "token=", token or "nil")
+	print("[살보결] Match enter:", reason or "?", "token=", token)
 
 	task.defer(function()
-		task.wait(0.35)
+		task.wait(0.5)
 		enableMatchFeatures()
-		task.wait(0.9)
-		if isInMatch() then
-			enableMatchFeatures()
-			pcall(function()
-				local reset = getgenv()._SalboResetKillAllBurst
-				if typeof(reset) == "function" then
-					reset("matchEnterRetry")
-				end
-			end)
-		end
 	end)
 end
 
@@ -5408,6 +5367,7 @@ local function startMatchFeatureWatcher()
 			else
 				MatchFeatureState.WasInMatch = false
 				MatchFeatureState.LastMatchToken = nil
+				MatchFeatureState.AppliedToken = nil
 			end
 			task.wait(1.25)
 		end
