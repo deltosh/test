@@ -2637,7 +2637,8 @@ local function disconnectFeature(name)
 	end
 end
 
--- 원래 되던 Kill All (FzyG) + Cooldown==0 장착 수정 + 매치마다 shot 리셋
+-- Kill All: AutoShoot과 같은 발사 방식 + 전원 타격
+-- (자동시작 시 카운트다운에 shot=true 고착되던 버스트 로직 제거)
 KillAll = sections.combat_left:AddToggle({
 	name = "Kill All",
 	default = Core.Features.KillAll.Enabled,
@@ -2662,35 +2663,33 @@ KillAll = sections.combat_left:AddToggle({
 			return
 		end
 
-		local shot = false
-		local shoot_time = 0
-		local delay = 6
-		local lastMatchToken = LocalPlayer:GetAttribute("Match")
+		local lastCanShoot = false
 
 		local function resetBurst()
-			shot = false
-			shoot_time = 0
-			lastMatchToken = LocalPlayer:GetAttribute("Match")
+			lastCanShoot = false
 		end
 		getgenv()._SalboResetKillAllBurst = resetBurst
 
 		Core.Connections.KillAllChar = LocalPlayer.CharacterAdded:Connect(resetBurst)
 		Core.Connections.KillAllMatch = LocalPlayer:GetAttributeChangedSignal("Match"):Connect(resetBurst)
 
-		Core.Connections.KillAll = Services.RunService.PreRender:Connect(function()
+		Core.Connections.KillAll = Services.RunService.Heartbeat:Connect(function()
 			if not Core.Features.KillAll.Enabled then return end
-
-			local now = tick()
-			local matchToken = LocalPlayer:GetAttribute("Match")
-			if matchToken ~= lastMatchToken then
-				resetBurst()
-			end
 
 			local character = LocalPlayer.Character
 			if not character then return end
 
 			local player_humanoid = character:FindFirstChildOfClass("Humanoid")
 			if not player_humanoid or player_humanoid.Health <= 0 then return end
+
+			local can = Core:CanShoot()
+			-- 사격 불→가능 전환 시(라운드 시작) 바로 발사 재개
+			if can and not lastCanShoot then
+				lastCanShoot = true
+			elseif not can then
+				lastCanShoot = false
+				return
+			end
 
 			local remotes = Services.ReplicatedStorage:FindFirstChild("Remotes")
 			if not remotes then return end
@@ -2707,8 +2706,15 @@ KillAll = sections.combat_left:AddToggle({
 				end
 			end
 
-			if not Core:CanShoot() then return end
+			local equipped = nil
+			for _, tool in next, character:GetChildren() do
+				if tool:IsA("Tool") and tool:GetAttribute("Cooldown") ~= nil then
+					tool:SetAttribute("Cooldown", 0)
+					equipped = tool
+				end
+			end
 
+			local fired = false
 			for _, target in next, Services.Players:GetPlayers() do
 				if target == LocalPlayer then continue end
 				if LocalPlayer.Team and target.Team and target.Team == LocalPlayer.Team then continue end
@@ -2723,22 +2729,22 @@ KillAll = sections.combat_left:AddToggle({
 				local humanoid = target_character:FindFirstChildOfClass("Humanoid")
 				if not humanoid or humanoid.Health <= 0 then continue end
 
-				local humanoid_root_part = target_character:FindFirstChild("HumanoidRootPart")
-				if not humanoid_root_part then continue end
+				-- AutoShoot과 동일: Head 우선 (서버 판정)
+				local hit = target_character:FindFirstChild("Head")
+					or target_character:FindFirstChild("HumanoidRootPart")
+				if not hit then continue end
 
-				if not shot then
-					for _ = 1, 5 do
-						local pos = humanoid_root_part.Position
-						shoot_gun:FireServer(pos, pos, humanoid_root_part, pos)
-					end
-					shot = true
-					shoot_time = now
-					break
-				elseif (now - shoot_time) >= delay then
-					local pos = humanoid_root_part.Position
-					shoot_gun:FireServer(pos, pos, humanoid_root_part, pos)
-					shoot_time = now
+				local pos = hit.Position
+				for _ = 1, 3 do
+					shoot_gun:FireServer(pos, pos, hit, pos)
 				end
+				fired = true
+			end
+
+			if fired and equipped then
+				pcall(function()
+					equipped:Activate()
+				end)
 			end
 		end)
 	end
@@ -5284,17 +5290,36 @@ local function enableMatchFeatures()
 	forceToggleOn(Aura)
 
 	forceToggleOn(SpinBot)
-	forceToggleOn(KillAll)
 
-	pcall(function()
-		local reset = getgenv()._SalboResetKillAllBurst
-		if typeof(reset) == "function" then
-			reset()
+	-- Kill All은 사격 가능해질 때까지 기다렸다가 켬 (카운트다운 중 켜면 헛발사)
+	task.spawn(function()
+		local enabledAt = tick()
+		while (tick() - enabledAt) < 12 do
+			if not (Core.Settings.AutoQueue or getgenv()._SalboAutoQueueSession) then
+				return
+			end
+			if not isInMatch() then
+				task.wait(0.2)
+			elseif Core:CanShoot() then
+				break
+			else
+				task.wait(0.15)
+			end
 		end
+		if not (Core.Settings.AutoQueue or getgenv()._SalboAutoQueueSession) then
+			return
+		end
+		forceToggleOn(KillAll)
+		pcall(function()
+			local reset = getgenv()._SalboResetKillAllBurst
+			if typeof(reset) == "function" then
+				reset()
+			end
+		end)
+		print("[살보결] KillAll armed conn=", Core.Connections.KillAll ~= nil)
 	end)
 
-	print("[살보결] Match features ON KillAll=", Core.Connections.KillAll ~= nil,
-		"SpinBot=", Core.Connections.SpinBot ~= nil,
+	print("[살보결] Match features ON SpinBot=", Core.Connections.SpinBot ~= nil,
 		"ESP=", EspInstance ~= nil)
 end
 
