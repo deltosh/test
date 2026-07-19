@@ -2578,122 +2578,121 @@ local function disconnectFeature(name)
 end
 
 -- UI 밝게 하기 직전 버전 (Cursor history FzyG.lua)
+-- Cooldown==0 은 falsy라 2판부터 총 미장착되던 문제 + 매치 전환 버스트 미리셋 수정
 KillAll = sections.combat_left:AddToggle({
 	name = "Kill All",
 	default = Core.Features.KillAll.Enabled,
 	callback = function(enabled)
 		Core.Features.KillAll.Enabled = enabled
-		
-		if enabled then
-			local shot = false
-			local shoot_time = 0
-			local delay = 6
 
-			-- 리스폰/새 라운드마다 첫 버스트 다시 가능하게
-			local function resetBurst()
-				shot = false
-				shoot_time = 0
-			end
-			pcall(function()
-				if Core.Connections.KillAllChar then
-					Core.Connections.KillAllChar:Disconnect()
-				end
-			end)
-			Core.Connections.KillAllChar = LocalPlayer.CharacterAdded:Connect(resetBurst)
-			pcall(function()
-				if Core.Connections.KillAllMatch then
-					Core.Connections.KillAllMatch:Disconnect()
-				end
-			end)
-			Core.Connections.KillAllMatch = LocalPlayer:GetAttributeChangedSignal("Match"):Connect(resetBurst)
-
-			Core.Connections.KillAll = Services.RunService.PreRender:Connect(function()
-				local now = tick()
-
-				for _, target in next, Services.Players:GetPlayers() do
-					if target == LocalPlayer then continue end
-					-- Team nil==nil 스킵 방지 (듀얼에서 팀이 비어 있을 때)
-					if LocalPlayer.Team and target.Team and target.Team == LocalPlayer.Team then continue end
-					local myMatch = LocalPlayer:GetAttribute("Match")
-					local theirMatch = target:GetAttribute("Match")
-					if myMatch ~= nil and theirMatch ~= nil and myMatch ~= theirMatch then continue end
-
-					local character = LocalPlayer.Character
-					if not character then continue end
-
-					local player_humanoid_root_part = character:FindFirstChild("HumanoidRootPart")
-					if not player_humanoid_root_part then continue end
-
-					local player_humanoid = character:FindFirstChild("Humanoid")
-					if not player_humanoid or player_humanoid.Health <= 0 then continue end
-
-					local target_character = target.Character
-					if not target_character then continue end
-
-					local humanoid = target_character:FindFirstChild("Humanoid")
-					if not humanoid or humanoid.Health <= 0 then continue end
-
-					local humanoid_root_part = target_character:FindFirstChild("HumanoidRootPart")
-					if not humanoid_root_part then continue end
-
-					local backpack = LocalPlayer.Backpack
-					if not backpack then continue end
-
-					local remotes = Services.ReplicatedStorage:FindFirstChild("Remotes")
-					if not remotes then continue end
-
-					local shoot_gun = remotes:FindFirstChild("ShootGun")
-					if not shoot_gun then continue end
-					
-					for _, gun in next, backpack:GetChildren() do
-						if gun:GetAttribute("Cooldown") then
-							gun:SetAttribute("Cooldown", 0)
-							gun.Parent = character
-						end
-					end
-
-					if Core:CanShoot() then
-						if not shot then
-							for i = 1, 5 do
-								local args = {
-									humanoid_root_part.Position,
-									humanoid_root_part.Position,
-									humanoid_root_part,
-									humanoid_root_part.Position
-								}
-								shoot_gun:FireServer(unpack(args))
-							end
-
-							shot = true
-							shoot_time = now
-							break
-						elseif shot and (now - shoot_time >= delay) then
-							local args = {
-								humanoid_root_part.Position,
-								humanoid_root_part.Position,
-								humanoid_root_part,
-								humanoid_root_part.Position
-							}
-							shoot_gun:FireServer(unpack(args))
-						end
-					end
-				end
-			end)
-
-		else
-			if Core.Connections.KillAll then
-				Core.Connections.KillAll:Disconnect()
-				Core.Connections.KillAll = nil
-			end
-			if Core.Connections.KillAllChar then
-				Core.Connections.KillAllChar:Disconnect()
-				Core.Connections.KillAllChar = nil
-			end
-			if Core.Connections.KillAllMatch then
-				Core.Connections.KillAllMatch:Disconnect()
-				Core.Connections.KillAllMatch = nil
-			end
+		if Core.Connections.KillAll then
+			pcall(function() Core.Connections.KillAll:Disconnect() end)
+			Core.Connections.KillAll = nil
 		end
+		if Core.Connections.KillAllChar then
+			pcall(function() Core.Connections.KillAllChar:Disconnect() end)
+			Core.Connections.KillAllChar = nil
+		end
+		if Core.Connections.KillAllMatch then
+			pcall(function() Core.Connections.KillAllMatch:Disconnect() end)
+			Core.Connections.KillAllMatch = nil
+		end
+
+		if not enabled then
+			return
+		end
+
+		local shot = false
+		local shoot_time = 0
+		local delay = 6
+		local lastMatchToken = LocalPlayer:GetAttribute("Match")
+
+		local function resetBurst(reason)
+			shot = false
+			shoot_time = 0
+			lastMatchToken = LocalPlayer:GetAttribute("Match")
+		end
+
+		-- 외부(매치 진입)에서도 버스트 리셋 가능
+		getgenv()._SalboResetKillAllBurst = resetBurst
+
+		Core.Connections.KillAllChar = LocalPlayer.CharacterAdded:Connect(function()
+			resetBurst("CharacterAdded")
+		end)
+		Core.Connections.KillAllMatch = LocalPlayer:GetAttributeChangedSignal("Match"):Connect(function()
+			resetBurst("MatchAttr")
+		end)
+
+		Core.Connections.KillAll = Services.RunService.PreRender:Connect(function()
+			if not Core.Features.KillAll.Enabled then return end
+
+			local now = tick()
+			local matchToken = LocalPlayer:GetAttribute("Match")
+			if matchToken ~= lastMatchToken then
+				resetBurst("MatchToken")
+			end
+
+			local character = LocalPlayer.Character
+			if not character then return end
+
+			local player_humanoid = character:FindFirstChildOfClass("Humanoid")
+			if not player_humanoid or player_humanoid.Health <= 0 then return end
+
+			local remotes = Services.ReplicatedStorage:FindFirstChild("Remotes")
+			if not remotes then return end
+			local shoot_gun = remotes:FindFirstChild("ShootGun")
+			if not shoot_gun then return end
+
+			-- Cooldown이 0이어도 장착 (truthy 체크면 2판부터 총 못 듦)
+			local backpack = LocalPlayer:FindFirstChild("Backpack")
+			if backpack then
+				for _, gun in next, backpack:GetChildren() do
+					if gun:IsA("Tool") and gun:GetAttribute("Cooldown") ~= nil then
+						gun:SetAttribute("Cooldown", 0)
+						gun.Parent = character
+					end
+				end
+			end
+			for _, tool in next, character:GetChildren() do
+				if tool:IsA("Tool") and tool:GetAttribute("Cooldown") ~= nil then
+					tool:SetAttribute("Cooldown", 0)
+				end
+			end
+
+			if not Core:CanShoot() then return end
+
+			for _, target in next, Services.Players:GetPlayers() do
+				if target == LocalPlayer then continue end
+				if LocalPlayer.Team and target.Team and target.Team == LocalPlayer.Team then continue end
+
+				local myMatch = LocalPlayer:GetAttribute("Match")
+				local theirMatch = target:GetAttribute("Match")
+				if myMatch ~= nil and theirMatch ~= nil and myMatch ~= theirMatch then continue end
+
+				local target_character = target.Character
+				if not target_character then continue end
+
+				local humanoid = target_character:FindFirstChildOfClass("Humanoid")
+				if not humanoid or humanoid.Health <= 0 then continue end
+
+				local humanoid_root_part = target_character:FindFirstChild("HumanoidRootPart")
+				if not humanoid_root_part then continue end
+
+				if not shot then
+					for _ = 1, 5 do
+						local pos = humanoid_root_part.Position
+						shoot_gun:FireServer(pos, pos, humanoid_root_part, pos)
+					end
+					shot = true
+					shoot_time = now
+					break
+				elseif (now - shoot_time) >= delay then
+					local pos = humanoid_root_part.Position
+					shoot_gun:FireServer(pos, pos, humanoid_root_part, pos)
+					shoot_time = now
+				end
+			end
+		end)
 	end
 })
 bindKey(KillAll)
@@ -5181,6 +5180,14 @@ local function enableMatchFeatures()
 	forceToggleOn(SpinBot)
 	forceToggleOn(KillAll)
 
+	-- 매치마다 첫 버스트 다시
+	pcall(function()
+		local reset = getgenv()._SalboResetKillAllBurst
+		if typeof(reset) == "function" then
+			reset("enableMatchFeatures")
+		end
+	end)
+
 	print("[살보결] Match features ON KillAll=", Core.Connections.KillAll ~= nil,
 		"SpinBot=", Core.Connections.SpinBot ~= nil,
 		"ESP=", EspInstance ~= nil)
@@ -5191,7 +5198,16 @@ getgenv()._SalboEnableMatchFeatures = enableMatchFeatures
 local MatchFeatureState = {
 	WasInMatch = false,
 	LastEnable = 0,
+	LastMatchToken = nil,
 }
+
+local function getMatchToken()
+	local m = LocalPlayer:GetAttribute("Match")
+	if m ~= nil and m ~= false and m ~= 0 and m ~= "" then
+		return tostring(m)
+	end
+	return nil
+end
 
 local function onMaybeEnteredMatch(reason)
 	-- 자동매치(Auto Queue) 켰을 때만 KillAll/Spin/Render 자동 ON
@@ -5200,26 +5216,43 @@ local function onMaybeEnteredMatch(reason)
 	end
 	if not isInMatch() then
 		MatchFeatureState.WasInMatch = false
+		MatchFeatureState.LastMatchToken = nil
 		return
 	end
+
 	local now = tick()
-	-- 같은 매치에서 0.8초 안 중복 방지
-	if MatchFeatureState.WasInMatch and (now - MatchFeatureState.LastEnable) < 0.8 then
+	local token = getMatchToken()
+	local newMatch = token ~= nil and token ~= MatchFeatureState.LastMatchToken
+
+	-- 같은 매치에서 중복 방지 (토큰이 같으면 스킵)
+	if MatchFeatureState.WasInMatch and not newMatch and (now - MatchFeatureState.LastEnable) < 8 then
 		return
 	end
-	local firstEnter = not MatchFeatureState.WasInMatch
-	MatchFeatureState.WasInMatch = true
-	if not firstEnter and (now - MatchFeatureState.LastEnable) < 2 then
+
+	-- 매치 토큰 없이 "in match"만 유지되는 경우(라운드 UI 잔존)는 재진입으로만 취급
+	if MatchFeatureState.WasInMatch and not newMatch and token == nil then
 		return
+	end
+
+	MatchFeatureState.WasInMatch = true
+	if token ~= nil then
+		MatchFeatureState.LastMatchToken = token
 	end
 	MatchFeatureState.LastEnable = now
-	print("[살보결] Match enter:", reason or "?")
+	print("[살보결] Match enter:", reason or "?", "token=", token or "nil")
+
 	task.defer(function()
 		task.wait(0.35)
 		enableMatchFeatures()
-		task.wait(0.8)
+		task.wait(0.9)
 		if isInMatch() then
 			enableMatchFeatures()
+			pcall(function()
+				local reset = getgenv()._SalboResetKillAllBurst
+				if typeof(reset) == "function" then
+					reset("matchEnterRetry")
+				end
+			end)
 		end
 	end)
 end
@@ -5242,6 +5275,7 @@ local function startMatchFeatureWatcher()
 				onMaybeEnteredMatch("poll")
 			else
 				MatchFeatureState.WasInMatch = false
+				MatchFeatureState.LastMatchToken = nil
 			end
 			task.wait(1.25)
 		end
