@@ -2427,18 +2427,20 @@ function Core:LoadSettings()
 		return Services.HttpService:JSONDecode(raw)
 	end)
 	if not decode_ok or type(data) ~= "table" then return false end
-	if data.AutoQueue ~= nil then Core.Settings.AutoQueue = data.AutoQueue and true or false end
+	-- AutoQueue는 저장해도 로드하지 않음 — 스크립트 실행 시 항상 OFF
 	if data.AutoReexec ~= nil then Core.Settings.AutoReexec = data.AutoReexec and true or false end
 	if data.ScriptPath ~= nil then Core.Settings.ScriptPath = tostring(data.ScriptPath) end
 	if data.ScriptUrl ~= nil and tostring(data.ScriptUrl) ~= "" then
 		Core.Settings.ScriptUrl = tostring(data.ScriptUrl)
 	end
+	Core.Settings.AutoQueue = false
 	return true
 end
 
 pcall(function()
 	Core:LoadSettings()
 end)
+Core.Settings.AutoQueue = false
 
 local function bindKey(toggle)
 	toggle:AddKeybind({
@@ -5090,14 +5092,15 @@ end)
 	return true, used
 end
 
--- Load persisted auto settings early
+-- Load persisted auto settings early (AutoQueue는 항상 OFF로 시작)
 pcall(function()
 	Core:LoadSettings()
 end)
+Core.Settings.AutoQueue = false
 
 AutoQueueToggle = sections.settings_right:AddToggle({
 	name = "Auto Queue 1v1",
-	default = Core.Settings.AutoQueue,
+	default = false,
 	callback = function(enabled)
 		-- 매칭 대기 중 실수 클릭/오클릭으로 꺼지는 것 방지
 		if AutoQueueState and AutoQueueState.Lock then
@@ -5263,9 +5266,7 @@ task.defer(function()
 
 	startMatchFeatureWatcher()
 
-	if Core.Settings.AutoQueue then
-		setAutoQueueEnabled(true)
-	end
+	-- Auto Queue는 실행 시 항상 수동으로만 켬 (자동 시작 없음)
 end)
 
 local function cleanup()
