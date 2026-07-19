@@ -4537,14 +4537,18 @@ local function applyLoadedConfig(features)
 	local function fireToggle(toggle, enabled)
 		if not toggle or not toggle.UpdateState then return end
 		enabled = enabled and true or false
-		if toggle.State then
+		-- 항상 off(콜백) → on(콜백) 로 커넥션 재생성
+		pcall(function()
 			toggle:UpdateState(false, true)
-		end
+		end)
 		if enabled then
-			toggle:UpdateState(true, true)
+			pcall(function()
+				toggle:UpdateState(true, true)
+			end)
 		end
 	end
 
+	-- 서브 옵션
 	fireToggle(SilentAimWallCheck, want.SilentAimWallCheck)
 	fireToggle(ESPTeamCheck, want.ESPTeamCheck)
 	fireToggle(ESPRemoveHidden, want.ESPRemoveHidden)
@@ -4555,8 +4559,7 @@ local function applyLoadedConfig(features)
 	fireToggle(ESPName, want.ESPName)
 	fireToggle(ESPRainbow, want.ESPRainbow)
 
-	fireToggle(KillAll, want.KillAll)
-	fireToggle(AutoShoot, want.AutoShoot)
+	-- 메인 (KillAll이 AutoShoot보다 먼저)
 	fireToggle(SilentAim, want.SilentAim)
 	fireToggle(KnifeAura, want.KnifeAura)
 	fireToggle(SetCooldown, want.SetCooldown)
@@ -4575,6 +4578,20 @@ local function applyLoadedConfig(features)
 	fireToggle(BunnyHop, want.BunnyHop)
 	fireToggle(PlayerESP, want.PlayerESP)
 	fireToggle(Aura, want.Aura)
+
+	fireToggle(KillAll, want.KillAll)
+	-- KillAll 켜져 있으면 AutoShoot 루프는 양보하므로, 둘 다 켜도 KillAll 우선
+	fireToggle(AutoShoot, want.AutoShoot)
+
+	-- 플래그 최종 보장 + 연결 재확인
+	Core.Features.KillAll.Enabled = want.KillAll
+	Core.Features.AutoShoot.Enabled = want.AutoShoot
+	if want.KillAll and not Core.Connections.KillAll then
+		fireToggle(KillAll, true)
+	end
+	if want.AutoShoot and not Core.Connections.AutoShoot then
+		fireToggle(AutoShoot, true)
+	end
 
 	print(string.format(
 		"[살보결] Config applied KillAll=%s (conn=%s) AutoShoot=%s (conn=%s)",
@@ -4734,39 +4751,20 @@ local LOBBY_PLACE_IDS = {
 	[12355337193] = true,
 }
 
+local function isLobbyPlace()
+	return LOBBY_PLACE_IDS[game.PlaceId] == true
+end
+
 local function isDuelPlace()
 	return DUEL_PLACE_IDS[game.PlaceId] ~= nil
 end
 
 local function isInMatch()
-	-- 로비 PlaceId에서는 매치로 보지 않음
-	if LOBBY_PLACE_IDS[game.PlaceId] then
+	-- 로비가 아니면 전부/맵으로 보고 큐 중단
+	if isLobbyPlace() then
 		return false
 	end
-	if isDuelPlace() then
-		return true
-	end
-
-	local m = LocalPlayer:GetAttribute("Match")
-	if type(m) == "string" and #m > 0 then return true end
-	if type(m) == "number" and m ~= 0 then return true end
-	if m == true then return true end
-
-	-- RoundCountdown.Enabled 만으로는 로비 오탐이 많음 → 실제 보이는 숫자만
-	local pg = LocalPlayer:FindFirstChild("PlayerGui")
-	if pg then
-		local rc = pg:FindFirstChild("RoundCountdown")
-		if rc and rc:IsA("LayerCollector") and rc.Enabled == true then
-			local number = rc:FindFirstChild("Number", true)
-			if number and number:IsA("TextLabel") and number.Visible then
-				local value = tonumber(number.Text)
-				if value and value >= 1 then
-					return true
-				end
-			end
-		end
-	end
-	return false
+	return true
 end
 
 local function normalizeGuiText(s)
@@ -5113,13 +5111,12 @@ local function waitForMatchOrQueue(timeoutSec)
 	local lastSawSearch = isQueueSearching() and tick() or 0
 	local joinErrChecked = false
 
-	-- 대기 내내 Lock 하지 않음 (토글/클릭이 멈추는 문제 방지)
 	AutoQueueState.Phase = "wait"
 
 	while AutoQueueState.Running and Core.Settings.AutoQueue and (tick() - startT) < timeoutSec do
-		if isInMatch() then
-			Notify("Auto Queue", "매칭됨 — 맵 이동")
-			task.wait(3)
+		-- 로비 아니면 즉시 중단 (게임 중 재시도/거절 알림 금지)
+		if not isLobbyPlace() or isInMatch() then
+			print("[살보결] AutoQueue leave wait (not lobby / in match)")
 			return true
 		end
 
@@ -5135,9 +5132,9 @@ local function waitForMatchOrQueue(timeoutSec)
 			elseif lastSawSearch == 0 and elapsed < 8 then
 				if not joinErrChecked and elapsed >= 1.0 and elapsed <= 5 and hasJoinErrorToast() then
 					joinErrChecked = true
-					Notify("Auto Queue", "큐 거절됨 — 재시도")
 					print("[살보결] AutoQueue join rejected")
-					task.wait(4)
+					-- 알림 스팸 없이 조용히 재시도
+					task.wait(3)
 					return false
 				end
 				task.wait(0.4)
@@ -5148,30 +5145,25 @@ local function waitForMatchOrQueue(timeoutSec)
 		end
 	end
 
-	return isInMatch()
+	return not isLobbyPlace() or isInMatch()
 end
 
 local function autoQueueLoop()
-	Notify("Auto Queue", "시작: 플레이 → 1v1 → 대기")
-	print("[살보결] AutoQueue start place=", game.PlaceId, "inMatch=", isInMatch(), "searching=", isQueueSearching())
+	Notify("Auto Queue", "로비에서만 큐: 플레이 → 1v1")
+	print("[살보결] AutoQueue start place=", game.PlaceId, "lobby=", isLobbyPlace())
 
 	while AutoQueueState.Running and Core.Settings.AutoQueue do
 		local ok, err = pcall(function()
-			if isInMatch() then
-				print("[살보결] AutoQueue in match — idle")
-				task.wait(5)
+			-- ===== 게임/맵 중: 큐 완전 정지 =====
+			if not isLobbyPlace() then
+				AutoQueueState.Phase = "ingame"
+				task.wait(4)
 				return
 			end
 
-			-- 검색 중이면 대기 (오탐이면 바로 false라 Play로 진행)
 			if isQueueSearching() then
 				print("[살보결] AutoQueue searching — wait")
-				Notify("Auto Queue", "매칭 검색 중...")
-				local okWait = waitForMatchOrQueue(90)
-				-- 검색이 가짜/끊기면 Play부터 다시
-				if not okWait and not isQueueSearching() then
-					print("[살보결] AutoQueue search ended — retry play")
-				end
+				waitForMatchOrQueue(90)
 				return
 			end
 
@@ -5193,12 +5185,12 @@ local function autoQueueLoop()
 					clickGui(playBtn)
 					for _ = 1, 20 do
 						if not AutoQueueState.Running then return end
+						if not isLobbyPlace() then return end
 						if isModeMenuOpen() or isQueueSearching() then break end
 						task.wait(0.2)
 					end
 				else
 					print("[살보결] play not found")
-					Notify("Auto Queue", "플레이 버튼 없음")
 					task.wait(2)
 				end
 				return
@@ -5217,12 +5209,10 @@ local function autoQueueLoop()
 				Notify("Auto Queue", "2) 1v1")
 				print("[살보결] click 1v1", btn1:GetFullName())
 				clickGui(btn1)
-				Notify("Auto Queue", "3) 매칭 대기...")
 				waitForMatchOrQueue(90)
 				return
 			end
 
-			print("[살보결] 1v1 not found — retry")
 			task.wait(1.2)
 		end)
 
