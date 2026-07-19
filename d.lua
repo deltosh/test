@@ -2207,33 +2207,8 @@ function Core:GetCharacter(player)
 end
 
 function Core:CanShoot()
-	-- 카운트다운이 "실제로 보이는 큰 숫자"일 때만 막음
-	local player_gui = LocalPlayer:FindFirstChild("PlayerGui")
-	if not player_gui then return true end
-
-	local round_countdown = player_gui:FindFirstChild("RoundCountdown")
-	if not round_countdown or round_countdown.Enabled == false then
-		return true
-	end
-
-	local countdown_frame = round_countdown:FindFirstChild("CountdownFrame")
-	if not countdown_frame or (countdown_frame:IsA("GuiObject") and not countdown_frame.Visible) then
-		return true
-	end
-
-	local frame = countdown_frame:FindFirstChild("Frame")
-	if not frame or (frame:IsA("GuiObject") and not frame.Visible) then
-		return true
-	end
-
-	local number = frame:FindFirstChild("Number")
-	if not number or not number.Text then return true end
-	if number:IsA("GuiObject") and not number.Visible then return true end
-
-	local value = tonumber(number.Text)
-	if not value then return true end
-
-	return value <= 2
+	-- 카운트다운 UI 때문에 사격이 통째로 막히던 문제 → 항상 허용
+	return true
 end
 
 function Core:HasLineOfSight(origin, target_character, target_part)
@@ -2784,10 +2759,20 @@ end
 local function fireShootGun(shoot_gun, hitPart)
 	if not shoot_gun or not hitPart then return end
 	local pos = hitPart.Position
+	-- 예전에 되던 시그니처
 	getgenv()._SalboOwnShot = true
-	pcall(function()
+	local ok = pcall(function()
 		shoot_gun:FireServer(pos, pos, hitPart, pos)
 	end)
+	if not ok then
+		-- 일부 빌드 호환
+		pcall(function()
+			shoot_gun:FireServer(pos, hitPart, pos)
+		end)
+		pcall(function()
+			shoot_gun:FireServer(hitPart, pos)
+		end)
+	end
 	getgenv()._SalboOwnShot = false
 end
 
@@ -2795,11 +2780,10 @@ local function isKillAllTarget(target)
 	if target == LocalPlayer then return false end
 	local myMatch = LocalPlayer:GetAttribute("Match")
 	local theirMatch = target:GetAttribute("Match")
-	-- 둘 다 값이 있을 때만 다른 매치 제외 (한쪽 nil이면 스킵하지 않음)
 	if myMatch ~= nil and theirMatch ~= nil and myMatch ~= theirMatch then
 		return false
 	end
-	if LocalPlayer.Team and target.Team and target.Team == LocalPlayer.Team then
+	if LocalPlayer.Team ~= nil and target.Team ~= nil and target.Team == LocalPlayer.Team then
 		return false
 	end
 	return true
@@ -2816,52 +2800,54 @@ KillAll = sections.combat_left:AddToggle({
 			return
 		end
 
-		local lastShot = 0
+		local shot = false
+		local shoot_time = 0
+		local delay = 6
 
-		Core.Connections.KillAll = Services.RunService.Heartbeat:Connect(function()
+		Core.Connections.KillAll = Services.RunService.PreRender:Connect(function()
 			if not Core.Features.KillAll.Enabled then return end
-
 			local now = tick()
-			-- 과다 연사하면 ShootGun이 막혀 AutoShoot까지 죽음
-			if (now - lastShot) < 0.12 then return end
 
 			local character = LocalPlayer.Character
 			if not character then return end
 
-			local humanoid = character:FindFirstChildOfClass("Humanoid")
-			if not humanoid or humanoid.Health <= 0 then return end
+			local player_humanoid = character:FindFirstChildOfClass("Humanoid")
+			if not player_humanoid or player_humanoid.Health <= 0 then return end
 
 			local shoot_gun = getShootGun()
 			if not shoot_gun then return end
 
-			local gun = equipGun(character)
-			if not gun then return end
-
-			if not Core:CanShoot() then return end
-
-			lastShot = now
-			local fired = false
+			local backpack = LocalPlayer:FindFirstChild("Backpack")
+			if backpack then
+				for _, gun in next, backpack:GetChildren() do
+					if gun:GetAttribute("Cooldown") ~= nil then
+						gun:SetAttribute("Cooldown", 0)
+						gun.Parent = character
+						break
+					end
+				end
+			end
 
 			for _, target in next, Services.Players:GetPlayers() do
 				if isKillAllTarget(target) then
 					local target_character = target.Character
 					if target_character then
-						local th = target_character:FindFirstChildOfClass("Humanoid")
-						local hit = target_character:FindFirstChild("Head")
-							or target_character:FindFirstChild("HumanoidRootPart")
-						if th and th.Health > 0 and hit then
-							fireShootGun(shoot_gun, hit)
-							fireShootGun(shoot_gun, hit)
-							fired = true
+						local humanoid = target_character:FindFirstChildOfClass("Humanoid")
+						local humanoid_root_part = target_character:FindFirstChild("HumanoidRootPart")
+						if humanoid and humanoid.Health > 0 and humanoid_root_part then
+							if not shot then
+								for _ = 1, 5 do
+									fireShootGun(shoot_gun, humanoid_root_part)
+								end
+								shot = true
+								shoot_time = now
+								break
+							elseif (now - shoot_time) >= delay then
+								fireShootGun(shoot_gun, humanoid_root_part)
+							end
 						end
 					end
 				end
-			end
-
-			if fired then
-				pcall(function()
-					gun:Activate()
-				end)
 			end
 		end)
 	end
@@ -2879,16 +2865,9 @@ AutoShoot = sections.combat_left:AddToggle({
 			return
 		end
 
-		local lastShot = 0
-
-		Core.Connections.AutoShoot = Services.RunService.Heartbeat:Connect(function()
+		Core.Connections.AutoShoot = Services.RunService.PreRender:Connect(function()
 			if not Core.Features.AutoShoot.Enabled then return end
-			-- Kill All 켜져 있으면 AutoShoot은 양보 (리모트 충돌 방지)
 			if Core.Features.KillAll.Enabled then return end
-			if not Core:CanShoot() then return end
-
-			local now = tick()
-			if (now - lastShot) < 0.05 then return end
 
 			local character = LocalPlayer.Character
 			if not character then return end
@@ -2899,11 +2878,31 @@ AutoShoot = sections.combat_left:AddToggle({
 			local shoot_gun = getShootGun()
 			if not shoot_gun then return end
 
-			local equipped = equipGun(character)
+			local equipped = nil
+			local backpack = LocalPlayer:FindFirstChild("Backpack")
+			if backpack then
+				for _, gun in next, backpack:GetChildren() do
+					if gun:IsA("Tool") and gun:GetAttribute("Cooldown") ~= nil then
+						gun:SetAttribute("Cooldown", 0)
+						gun.Parent = character
+						equipped = gun
+						break
+					end
+				end
+			end
+			if not equipped then
+				for _, tool in next, character:GetChildren() do
+					if tool:IsA("Tool") and tool:GetAttribute("Cooldown") ~= nil then
+						tool:SetAttribute("Cooldown", 0)
+						equipped = tool
+						break
+					end
+				end
+			end
+
 			local target_head = Core:GetAutoShootTarget()
 			if not target_head then return end
 
-			lastShot = now
 			fireShootGun(shoot_gun, target_head)
 			fireShootGun(shoot_gun, target_head)
 			fireShootGun(shoot_gun, target_head)
@@ -2929,29 +2928,37 @@ bindKey(SilentAim)
 
 local namecall; namecall = hookmetamethod(game, "__namecall", function(self, ...)
 	local method = getnamecallmethod()
+	local args = { ... }
 
-	-- 우리 스크립트가 쏜 ShootGun은 Silent Aim이 건드리지 않음
 	if getgenv()._SalboOwnShot then
 		return namecall(self, ...)
 	end
 
 	if Core.Features.SilentAim.Enabled and not checkcaller() and method == "FireServer" then
 		local remoteName = self and self.Name
-		if remoteName == "ShootGun" or remoteName == "ThrowHit" then
+		-- Vector3 조준 패킷만 수정 (string 인자 있는 호출은 깨짐)
+		if remoteName == "ShootGun" and typeof(args[1]) == "Vector3" then
 			local closest = Core:GetClosest({
 				range = Core.Features.SilentAim.Range,
 				wall_check = Core.Features.SilentAim.WallCheck,
 				priority = Core.Features.SilentAim.Priority
 			})
-
 			if closest then
 				local head = closest:FindFirstChild("Head")
 				if head then
-					if remoteName == "ShootGun" then
-						return namecall(self, head.Position, head.Position, head, head.Position)
-					elseif remoteName == "ThrowHit" then
-						return namecall(self, head, head.Position)
-					end
+					return namecall(self, head.Position, head.Position, head, head.Position)
+				end
+			end
+		elseif remoteName == "ThrowHit" then
+			local closest = Core:GetClosest({
+				range = Core.Features.SilentAim.Range,
+				wall_check = Core.Features.SilentAim.WallCheck,
+				priority = Core.Features.SilentAim.Priority
+			})
+			if closest then
+				local head = closest:FindFirstChild("Head")
+				if head then
+					return namecall(self, head, head.Position)
 				end
 			end
 		end
