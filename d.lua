@@ -2749,112 +2749,103 @@ local function fireShootGun(shoot_gun, hitPart)
 	getgenv()._SalboOwnShot = false
 end
 
-local function isCombatEnemy(target)
-	if target == LocalPlayer then return false end
-	local myMatch = LocalPlayer:GetAttribute("Match")
-	local theirMatch = target:GetAttribute("Match")
-	-- AutoShoot과 동일: 둘 다 Match가 있을 때만 다른 매치 제외
-	if myMatch ~= nil and theirMatch ~= nil and myMatch ~= theirMatch then
-		return false
-	end
-	-- 원본 `Team == Team` 은 nil==nil 이라 전원 스킵됨 → AutoShoot 방식으로
-	if LocalPlayer.Team and target.Team and target.Team == LocalPlayer.Team then
-		return false
-	end
-	return true
-end
-
+-- 1.lua (살보결 개인툴) Kill All 원본
 KillAll = sections.combat_left:AddToggle({
 	name = "Kill All",
 	default = Core.Features.KillAll.Enabled,
 	callback = function(enabled)
-		Core.Features.KillAll.Enabled = enabled and true or false
-		disconnectFeature("KillAll")
+		Core.Features.KillAll.Enabled = enabled
 
-		if not enabled then
-			return
+		if enabled then
+			local shot = false
+			local shoot_time = 0
+			local delay = 6
+
+			if Core.Connections.KillAll then
+				pcall(function()
+					Core.Connections.KillAll:Disconnect()
+				end)
+				Core.Connections.KillAll = nil
+			end
+
+			Core.Connections.KillAll = Services.RunService.PreRender:Connect(function()
+				local now = tick()
+
+				for _, target in next, Services.Players:GetPlayers() do
+					if target:GetAttribute("Match") ~= LocalPlayer:GetAttribute("Match") then continue end
+					if target.Team == LocalPlayer.Team then continue end
+
+					local character = LocalPlayer.Character
+					if not character then continue end
+
+					local player_humanoid_root_part = character:FindFirstChild("HumanoidRootPart")
+					if not player_humanoid_root_part then continue end
+
+					local player_humanoid = character:FindFirstChild("Humanoid")
+					if not player_humanoid or player_humanoid.Health <= 0 then continue end
+
+					local target_character = target.Character
+					if not target_character then continue end
+
+					local humanoid = target_character:FindFirstChild("Humanoid")
+					if not humanoid or humanoid.Health <= 0 then continue end
+
+					local humanoid_root_part = target_character:FindFirstChild("HumanoidRootPart")
+					if not humanoid_root_part then continue end
+
+					local backpack = LocalPlayer.Backpack
+					if not backpack then continue end
+
+					local remotes = Services.ReplicatedStorage:FindFirstChild("Remotes")
+					if not remotes then continue end
+
+					local shoot_gun = remotes:FindFirstChild("ShootGun")
+					if not shoot_gun then continue end
+
+					for _, gun in next, backpack:GetChildren() do
+						if gun:GetAttribute("Cooldown") then
+							gun:SetAttribute("Cooldown", 0)
+							gun.Parent = character
+						end
+					end
+
+					if Core:CanShoot() then
+						if not shot then
+							for i = 1, 5 do
+								local args = {
+									humanoid_root_part.Position,
+									humanoid_root_part.Position,
+									humanoid_root_part,
+									humanoid_root_part.Position
+								}
+								getgenv()._SalboOwnShot = true
+								shoot_gun:FireServer(unpack(args))
+								getgenv()._SalboOwnShot = false
+							end
+
+							shot = true
+							shoot_time = now
+							break
+						elseif shot and (now - shoot_time >= delay) then
+							local args = {
+								humanoid_root_part.Position,
+								humanoid_root_part.Position,
+								humanoid_root_part,
+								humanoid_root_part.Position
+							}
+							getgenv()._SalboOwnShot = true
+							shoot_gun:FireServer(unpack(args))
+							getgenv()._SalboOwnShot = false
+						end
+					end
+				end
+			end)
+		else
+			if Core.Connections.KillAll then
+				Core.Connections.KillAll:Disconnect()
+				Core.Connections.KillAll = nil
+			end
 		end
-
-		local shot = false
-		local shoot_time = 0
-		local delay = 6
-
-		Core.Connections.KillAll = Services.RunService.PreRender:Connect(function()
-			if not Core.Features.KillAll.Enabled then return end
-			if not Core:CanShoot() then return end
-
-			local now = tick()
-			local character = LocalPlayer.Character
-			if not character then return end
-
-			local player_humanoid = character:FindFirstChildOfClass("Humanoid")
-				or character:FindFirstChild("Humanoid")
-			if not player_humanoid or player_humanoid.Health <= 0 then return end
-
-			local shoot_gun = getShootGun()
-			if not shoot_gun then return end
-
-			local equipped = nil
-			local backpack = LocalPlayer:FindFirstChild("Backpack")
-			if backpack then
-				for _, gun in next, backpack:GetChildren() do
-					-- Cooldown 이 0 이면 falsy → ~= nil 로 장착
-					if gun:IsA("Tool") and gun:GetAttribute("Cooldown") ~= nil then
-						gun:SetAttribute("Cooldown", 0)
-						gun.Parent = character
-						equipped = gun
-					end
-				end
-			end
-			if not equipped then
-				for _, tool in next, character:GetChildren() do
-					if tool:IsA("Tool") and tool:GetAttribute("Cooldown") ~= nil then
-						tool:SetAttribute("Cooldown", 0)
-						equipped = tool
-					end
-				end
-			end
-
-			local fired = false
-			for _, target in next, Services.Players:GetPlayers() do
-				if not isCombatEnemy(target) then continue end
-
-				local target_character = target.Character
-				if not target_character then continue end
-
-				local humanoid = target_character:FindFirstChildOfClass("Humanoid")
-					or target_character:FindFirstChild("Humanoid")
-				if not humanoid or humanoid.Health <= 0 then continue end
-
-				local hitPart = target_character:FindFirstChild("Head")
-					or target_character:FindFirstChild("HumanoidRootPart")
-				if not hitPart then continue end
-
-				if not shot then
-					for _ = 1, 5 do
-						fireShootGun(shoot_gun, hitPart)
-					end
-					fired = true
-				elseif (now - shoot_time) >= delay then
-					fireShootGun(shoot_gun, hitPart)
-					fireShootGun(shoot_gun, hitPart)
-					fireShootGun(shoot_gun, hitPart)
-					fired = true
-				end
-			end
-
-			if fired then
-				if not shot then
-					shot = true
-					shoot_time = now
-				end
-				if equipped then
-					pcall(function()
-						equipped:Activate()
-					end)
-				end
-			end
-		end)
 	end
 })
 bindKey(KillAll)
@@ -2934,7 +2925,8 @@ local namecall; namecall = hookmetamethod(game, "__namecall", function(self, ...
 	local method = getnamecallmethod()
 	local args = { ... }
 
-	if getgenv()._SalboOwnShot then
+	-- Kill All / AutoShoot 자체 발사는 Silent Aim이 인자를 바꾸지 않게
+	if getgenv()._SalboOwnShot or Core.Features.KillAll.Enabled then
 		return namecall(self, ...)
 	end
 
