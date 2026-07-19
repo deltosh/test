@@ -2249,31 +2249,23 @@ function Core:GetCharacter(player)
 end
 
 function Core:CanShoot()
-	local player_gui = LocalPlayer:FindFirstChild("PlayerGui") or LocalPlayer.PlayerGui
+	local player_gui = LocalPlayer.PlayerGui
 	if not player_gui then return true end
 
 	local round_countdown = player_gui:FindFirstChild("RoundCountdown")
+
 	if not round_countdown or round_countdown.Enabled == false then
 		return true
 	end
 
 	local countdown_frame = round_countdown:FindFirstChild("CountdownFrame")
 	if not countdown_frame then return true end
-	if countdown_frame:IsA("GuiObject") and not countdown_frame.Visible then
-		return true
-	end
 
 	local frame = countdown_frame:FindFirstChild("Frame")
 	if not frame then return true end
-	if frame:IsA("GuiObject") and not frame.Visible then
-		return true
-	end
 
 	local number = frame:FindFirstChild("Number")
 	if not number or not number.Text then return true end
-	if number:IsA("GuiObject") and not number.Visible then
-		return true
-	end
 
 	local value = tonumber(number.Text)
 	if not value then return true end
@@ -2637,7 +2629,7 @@ local function disconnectFeature(name)
 	end
 end
 
--- Kill All: 매치 필터/카운트다운에 막히지 않게 (1v1 상대만)
+-- 검증된 Kill All (Cursor history FzyG.lua 원본) + Cooldown 0 장착 수정
 KillAll = sections.combat_left:AddToggle({
 	name = "Kill All",
 	default = Core.Features.KillAll.Enabled,
@@ -2645,92 +2637,87 @@ KillAll = sections.combat_left:AddToggle({
 		Core.Features.KillAll.Enabled = enabled
 
 		if Core.Connections.KillAll then
-			pcall(function() Core.Connections.KillAll:Disconnect() end)
+			pcall(function()
+				Core.Connections.KillAll:Disconnect()
+			end)
 			Core.Connections.KillAll = nil
-		end
-		if Core.Connections.KillAllChar then
-			pcall(function() Core.Connections.KillAllChar:Disconnect() end)
-			Core.Connections.KillAllChar = nil
-		end
-		if Core.Connections.KillAllMatch then
-			pcall(function() Core.Connections.KillAllMatch:Disconnect() end)
-			Core.Connections.KillAllMatch = nil
 		end
 
 		if not enabled then
 			return
 		end
 
-		Core.Connections.KillAll = Services.RunService.Heartbeat:Connect(function()
-			if not Core.Features.KillAll.Enabled then return end
+		local shot = false
+		local shoot_time = 0
+		local delay = 6
 
-			local character = LocalPlayer.Character
-			if not character then return end
+		Core.Connections.KillAll = Services.RunService.PreRender:Connect(function()
+			local now = tick()
 
-			local player_humanoid = character:FindFirstChildOfClass("Humanoid")
-			if not player_humanoid or player_humanoid.Health <= 0 then return end
+			for _, target in next, Services.Players:GetPlayers() do
+				if target:GetAttribute("Match") ~= LocalPlayer:GetAttribute("Match") then continue end
+				if target.Team == LocalPlayer.Team then continue end
 
-			local remotes = Services.ReplicatedStorage:FindFirstChild("Remotes")
-			if not remotes then return end
-			local shoot_gun = remotes:FindFirstChild("ShootGun")
-			if not shoot_gun then return end
+				local character = LocalPlayer.Character
+				if not character then continue end
 
-			-- 총 장착 (Cooldown 0 포함)
-			local backpack = LocalPlayer:FindFirstChild("Backpack")
-			if backpack then
+				local player_humanoid_root_part = character:FindFirstChild("HumanoidRootPart")
+				if not player_humanoid_root_part then continue end
+
+				local player_humanoid = character:FindFirstChild("Humanoid")
+				if not player_humanoid or player_humanoid.Health <= 0 then continue end
+
+				local target_character = target.Character
+				if not target_character then continue end
+
+				local humanoid = target_character:FindFirstChild("Humanoid")
+				if not humanoid or humanoid.Health <= 0 then continue end
+
+				local humanoid_root_part = target_character:FindFirstChild("HumanoidRootPart")
+				if not humanoid_root_part then continue end
+
+				local backpack = LocalPlayer.Backpack
+				if not backpack then continue end
+
+				local remotes = Services.ReplicatedStorage:FindFirstChild("Remotes")
+				if not remotes then continue end
+
+				local shoot_gun = remotes:FindFirstChild("ShootGun")
+				if not shoot_gun then continue end
+
 				for _, gun in next, backpack:GetChildren() do
-					if gun:IsA("Tool") and gun:GetAttribute("Cooldown") ~= nil then
+					-- Cooldown==0 도 장착 (원본 truthy 체크는 2판부터 실패)
+					if gun:GetAttribute("Cooldown") ~= nil then
 						gun:SetAttribute("Cooldown", 0)
 						gun.Parent = character
 					end
 				end
-			end
 
-			local equipped = nil
-			for _, tool in next, character:GetChildren() do
-				if tool:IsA("Tool") and tool:GetAttribute("Cooldown") ~= nil then
-					tool:SetAttribute("Cooldown", 0)
-					equipped = tool
-				end
-			end
-
-			local fired = false
-			local function tryShoot(ignoreTeam)
-				for _, target in next, Services.Players:GetPlayers() do
-					if target == LocalPlayer then continue end
-					if not ignoreTeam then
-						if LocalPlayer.Team and target.Team and target.Team == LocalPlayer.Team then
-							continue
+				if Core:CanShoot() then
+					if not shot then
+						for i = 1, 5 do
+							local args = {
+								humanoid_root_part.Position,
+								humanoid_root_part.Position,
+								humanoid_root_part,
+								humanoid_root_part.Position
+							}
+							shoot_gun:FireServer(unpack(args))
 						end
+
+						shot = true
+						shoot_time = now
+						break
+					elseif shot and (now - shoot_time >= delay) then
+						local args = {
+							humanoid_root_part.Position,
+							humanoid_root_part.Position,
+							humanoid_root_part,
+							humanoid_root_part.Position
+						}
+						shoot_gun:FireServer(unpack(args))
 					end
-
-					local target_character = target.Character
-					if not target_character then continue end
-
-					local humanoid = target_character:FindFirstChildOfClass("Humanoid")
-					if not humanoid or humanoid.Health <= 0 then continue end
-
-					local hit = target_character:FindFirstChild("HumanoidRootPart")
-						or target_character:FindFirstChild("Head")
-					if not hit then continue end
-
-					local pos = hit.Position
-					for _ = 1, 5 do
-						shoot_gun:FireServer(pos, pos, hit, pos)
-					end
-					fired = true
 				end
-			end
-
-			tryShoot(false)
-			if not fired then
-				tryShoot(true) -- 팀 판정 때문에 0명이면 전원 시도
-			end
-
-			if fired and equipped then
-				pcall(function()
-					equipped:Activate()
-				end)
 			end
 		end)
 	end
@@ -5266,20 +5253,22 @@ local MatchFeatureState = {
 	LastEnable = 0,
 	LastMatchToken = nil,
 	AppliedToken = nil,
+	KillAllPending = false,
 }
 
 local function enableMatchFeatures()
 	local token = tostring(LocalPlayer:GetAttribute("Match") or "inmatch")
 	local now = tick()
 	if MatchFeatureState.AppliedToken == token
-		and Core.Connections.KillAll ~= nil
 		and (now - (MatchFeatureState.LastEnable or 0)) < 20
+		and (Core.Connections.KillAll ~= nil or MatchFeatureState.KillAllPending)
 	then
 		return
 	end
 
 	MatchFeatureState.LastEnable = now
 	MatchFeatureState.AppliedToken = token
+	MatchFeatureState.KillAllPending = true
 
 	Core.Features.PlayerESP.Box = true
 	Core.Features.PlayerESP.Tracer = true
@@ -5297,10 +5286,17 @@ local function enableMatchFeatures()
 	pcall(function() forceToggleOn(PlayerESP) end)
 	pcall(function() forceToggleOn(Aura) end)
 	pcall(function() forceToggleOn(SpinBot) end)
-	pcall(function() forceToggleOn(KillAll) end)
 
-	print("[살보결] Match features ON KillAll=", Core.Connections.KillAll ~= nil,
-		"SpinBot=", Core.Connections.SpinBot ~= nil,
+	-- Kill All은 라운드 시작 직후 켬
+	task.delay(1.5, function()
+		MatchFeatureState.KillAllPending = false
+		if not (Core.Settings.AutoQueue or getgenv()._SalboAutoQueueSession) then return end
+		if not isInMatch() then return end
+		pcall(function() forceToggleOn(KillAll) end)
+		print("[살보결] KillAll ON conn=", Core.Connections.KillAll ~= nil)
+	end)
+
+	print("[살보결] Match features ON SpinBot=", Core.Connections.SpinBot ~= nil,
 		"ESP=", EspInstance ~= nil)
 end
 
