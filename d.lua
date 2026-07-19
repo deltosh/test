@@ -2749,103 +2749,96 @@ local function fireShootGun(shoot_gun, hitPart)
 	getgenv()._SalboOwnShot = false
 end
 
--- 1.lua (살보결 개인툴) Kill All 원본
+-- AutoShoot과 같은 적 판정 (1.lua 의 Team nil==nil / Match 엄격비교는 전원 스킵됨)
+local function isCombatEnemy(target)
+	if target == LocalPlayer then return false end
+	local myMatch = LocalPlayer:GetAttribute("Match")
+	local theirMatch = target:GetAttribute("Match")
+	if myMatch ~= nil and theirMatch ~= nil and myMatch ~= theirMatch then
+		return false
+	end
+	if LocalPlayer.Team and target.Team and target.Team == LocalPlayer.Team then
+		return false
+	end
+	return true
+end
+
+local function equipShootTool(character)
+	if not character then return nil end
+	local equipped = nil
+	local backpack = LocalPlayer:FindFirstChild("Backpack")
+	if backpack then
+		for _, gun in next, backpack:GetChildren() do
+			if gun:IsA("Tool") and gun:GetAttribute("Cooldown") ~= nil then
+				gun:SetAttribute("Cooldown", 0)
+				gun.Parent = character
+				equipped = gun
+				break
+			end
+		end
+	end
+	if equipped then return equipped end
+	for _, tool in next, character:GetChildren() do
+		if tool:IsA("Tool") and tool:GetAttribute("Cooldown") ~= nil then
+			tool:SetAttribute("Cooldown", 0)
+			return tool
+		end
+	end
+	return nil
+end
+
+-- Kill All = AutoShoot 발사 방식을 적 전원에게 (화면/벽 조건 없음)
 KillAll = sections.combat_left:AddToggle({
 	name = "Kill All",
 	default = Core.Features.KillAll.Enabled,
 	callback = function(enabled)
-		Core.Features.KillAll.Enabled = enabled
+		Core.Features.KillAll.Enabled = enabled and true or false
+		disconnectFeature("KillAll")
 
-		if enabled then
-			local shot = false
-			local shoot_time = 0
-			local delay = 6
-
-			if Core.Connections.KillAll then
-				pcall(function()
-					Core.Connections.KillAll:Disconnect()
-				end)
-				Core.Connections.KillAll = nil
-			end
-
-			Core.Connections.KillAll = Services.RunService.PreRender:Connect(function()
-				local now = tick()
-
-				for _, target in next, Services.Players:GetPlayers() do
-					if target:GetAttribute("Match") ~= LocalPlayer:GetAttribute("Match") then continue end
-					if target.Team == LocalPlayer.Team then continue end
-
-					local character = LocalPlayer.Character
-					if not character then continue end
-
-					local player_humanoid_root_part = character:FindFirstChild("HumanoidRootPart")
-					if not player_humanoid_root_part then continue end
-
-					local player_humanoid = character:FindFirstChild("Humanoid")
-					if not player_humanoid or player_humanoid.Health <= 0 then continue end
-
-					local target_character = target.Character
-					if not target_character then continue end
-
-					local humanoid = target_character:FindFirstChild("Humanoid")
-					if not humanoid or humanoid.Health <= 0 then continue end
-
-					local humanoid_root_part = target_character:FindFirstChild("HumanoidRootPart")
-					if not humanoid_root_part then continue end
-
-					local backpack = LocalPlayer.Backpack
-					if not backpack then continue end
-
-					local remotes = Services.ReplicatedStorage:FindFirstChild("Remotes")
-					if not remotes then continue end
-
-					local shoot_gun = remotes:FindFirstChild("ShootGun")
-					if not shoot_gun then continue end
-
-					for _, gun in next, backpack:GetChildren() do
-						if gun:GetAttribute("Cooldown") then
-							gun:SetAttribute("Cooldown", 0)
-							gun.Parent = character
-						end
-					end
-
-					if Core:CanShoot() then
-						if not shot then
-							for i = 1, 5 do
-								local args = {
-									humanoid_root_part.Position,
-									humanoid_root_part.Position,
-									humanoid_root_part,
-									humanoid_root_part.Position
-								}
-								getgenv()._SalboOwnShot = true
-								shoot_gun:FireServer(unpack(args))
-								getgenv()._SalboOwnShot = false
-							end
-
-							shot = true
-							shoot_time = now
-							break
-						elseif shot and (now - shoot_time >= delay) then
-							local args = {
-								humanoid_root_part.Position,
-								humanoid_root_part.Position,
-								humanoid_root_part,
-								humanoid_root_part.Position
-							}
-							getgenv()._SalboOwnShot = true
-							shoot_gun:FireServer(unpack(args))
-							getgenv()._SalboOwnShot = false
-						end
-					end
-				end
-			end)
-		else
-			if Core.Connections.KillAll then
-				Core.Connections.KillAll:Disconnect()
-				Core.Connections.KillAll = nil
-			end
+		if not enabled then
+			return
 		end
+
+		Core.Connections.KillAll = Services.RunService.PreRender:Connect(function()
+			if not Core.Features.KillAll.Enabled then return end
+
+			local character = LocalPlayer.Character
+			if not character then return end
+
+			local player_humanoid = character:FindFirstChildOfClass("Humanoid")
+			if not player_humanoid or player_humanoid.Health <= 0 then return end
+
+			local shoot_gun = getShootGun()
+			if not shoot_gun then return end
+
+			local equipped = equipShootTool(character)
+			local any = false
+
+			for _, target in next, Services.Players:GetPlayers() do
+				if not isCombatEnemy(target) then continue end
+
+				local target_character = target.Character
+				if not target_character then continue end
+
+				local humanoid = target_character:FindFirstChildOfClass("Humanoid")
+				if not humanoid or humanoid.Health <= 0 then continue end
+
+				local hitPart = target_character:FindFirstChild("Head")
+					or target_character:FindFirstChild("HumanoidRootPart")
+				if not hitPart then continue end
+
+				fireShootGun(shoot_gun, hitPart)
+				fireShootGun(shoot_gun, hitPart)
+				fireShootGun(shoot_gun, hitPart)
+				any = true
+			end
+
+			if any and equipped then
+				pcall(function()
+					equipped:Activate()
+				end)
+			end
+		end)
 	end
 })
 bindKey(KillAll)
@@ -2863,6 +2856,8 @@ AutoShoot = sections.combat_left:AddToggle({
 
 		Core.Connections.AutoShoot = Services.RunService.PreRender:Connect(function()
 			if not Core.Features.AutoShoot.Enabled then return end
+			-- Kill All이 전원 사격 중이면 중복 발사만 피함
+			if Core.Features.KillAll.Enabled then return end
 
 			local character = LocalPlayer.Character
 			if not character then return end
@@ -2873,28 +2868,7 @@ AutoShoot = sections.combat_left:AddToggle({
 			local shoot_gun = getShootGun()
 			if not shoot_gun then return end
 
-			local equipped = nil
-			local backpack = LocalPlayer:FindFirstChild("Backpack")
-			if backpack then
-				for _, gun in next, backpack:GetChildren() do
-					if gun:IsA("Tool") and gun:GetAttribute("Cooldown") ~= nil then
-						gun:SetAttribute("Cooldown", 0)
-						gun.Parent = character
-						equipped = gun
-						break
-					end
-				end
-			end
-			if not equipped then
-				for _, tool in next, character:GetChildren() do
-					if tool:IsA("Tool") and tool:GetAttribute("Cooldown") ~= nil then
-						tool:SetAttribute("Cooldown", 0)
-						equipped = tool
-						break
-					end
-				end
-			end
-
+			local equipped = equipShootTool(character)
 			local target_head = Core:GetAutoShootTarget()
 			if not target_head then return end
 
