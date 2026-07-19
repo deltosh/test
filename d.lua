@@ -121,8 +121,13 @@ end
 end
 local MarketplaceService = game:GetService("MarketplaceService")
 local SoundService = game:GetService("SoundService")
-local productInfo = MarketplaceService:GetProductInfo(game.PlaceId)
-local gameName = productInfo.Name
+local gameName = "Unknown"
+pcall(function()
+	local productInfo = MarketplaceService:GetProductInfo(game.PlaceId)
+	if type(productInfo) == "table" and type(productInfo.Name) == "string" then
+		gameName = productInfo.Name
+	end
+end)
 local dropdownindex = 50
 function AddWindow(options)
 local options = options or {}
@@ -2427,7 +2432,7 @@ function Core:LoadSettings()
 		return Services.HttpService:JSONDecode(raw)
 	end)
 	if not decode_ok or type(data) ~= "table" then return false end
-	-- AutoQueue는 저장해도 로드하지 않음 — 스크립트 실행 시 항상 OFF
+	-- AutoQueue는 파일에서 복원하지 않음 (수동 실행=OFF / reexec=플래그로 복원)
 	if data.AutoReexec ~= nil then Core.Settings.AutoReexec = data.AutoReexec and true or false end
 	if data.ScriptPath ~= nil then Core.Settings.ScriptPath = tostring(data.ScriptPath) end
 	if data.ScriptUrl ~= nil and tostring(data.ScriptUrl) ~= "" then
@@ -4399,7 +4404,7 @@ sections.settings_right:AddButton({
 })
 
 --[[ AUTO QUEUE / REEXEC ]]--
--- Flow: 플레이 → 1v1 → 매칭 대기 → (맵 이동 시 reexec) → 로비 복귀 후 반복
+-- Flow: 플레이 → 1v1 → 매칭 → 한판 → 끝나면 즉시 재큐 (끄기 전까지 무한)
 -- Auto Queue ON일 때만 매치 입장 시 Kill All / Spin Bot / Render 자동 ON
 
 local DUEL_PLACE_IDS = {
@@ -4422,62 +4427,40 @@ local function isDuelPlace()
 	return DUEL_PLACE_IDS[game.PlaceId] ~= nil
 end
 
+local function hasMatchAttribute()
+	local m = LocalPlayer:GetAttribute("Match")
+	if type(m) == "string" and #m > 0 then return true end
+	if type(m) == "number" and m ~= 0 then return true end
+	if m == true then return true end
+	return false
+end
+
 local function isInMatch()
 	-- 별도 듀얼 맵
 	if isDuelPlace() then
 		return true
 	end
 
-	-- Match 속성 (이 게임이 로비와 같은 place에서 매치함)
-	local m = LocalPlayer:GetAttribute("Match")
-	if type(m) == "string" and #m > 0 then return true end
-	if type(m) == "number" and m ~= 0 then return true end
-	if m == true then return true end
-
-	local pg = LocalPlayer:FindFirstChild("PlayerGui")
-	if not pg then
-		return not isLobbyPlace()
-	end
-
-	-- RoundCountdown 켜짐 = 라운드/매치 중
-	local rc = pg:FindFirstChild("RoundCountdown")
-	if rc and rc:IsA("LayerCollector") and rc.Enabled == true then
+	-- Match 속성이 있으면 매치 중
+	if hasMatchAttribute() then
 		return true
 	end
 
-	-- 매치 HUD
-	for _, child in ipairs(pg:GetChildren()) do
-		if child:IsA("LayerCollector") and child.Enabled then
-			local n = string.lower(tostring(child.Name))
-			if string.find(n, "queue", 1, true)
-				or string.find(n, "lobby", 1, true)
-				or string.find(n, "loading", 1, true)
-				or string.find(n, "emote", 1, true)
-			then
-				-- skip
-			elseif string.find(n, "match", 1, true)
-				or string.find(n, "round", 1, true)
-				or string.find(n, "duel", 1, true)
-				or string.find(n, "score", 1, true)
-				or string.find(n, "ingame", 1, true)
-				or string.find(n, "gamehud", 1, true)
-				or n == "hud"
-			then
-				return true
-			end
-		end
+	-- 로비 place: Match가 없으면 로비로 간주
+	-- (RoundCountdown/HUD Enabled 잔상 때문에 큐가 영구 정지되던 문제 방지)
+	if isLobbyPlace() then
+		return false
 	end
 
-	-- 로비 place가 아니면 매치
-	if not isLobbyPlace() then
-		return true
-	end
-
-	return false
+	-- 알 수 없는 place → 매치로 취급
+	return true
 end
 
 local function canRunAutoQueue()
-	return not isInMatch()
+	-- 듀얼 맵 / Match 속성이 있으면 큐 안 함
+	if isDuelPlace() then return false end
+	if hasMatchAttribute() then return false end
+	return true
 end
 
 local function normalizeGuiText(s)
@@ -4874,31 +4857,51 @@ local function waitForMatchOrQueue(timeoutSec)
 end
 
 local function autoQueueLoop()
-	-- AutoQueue silent start
+	-- 끄기 전까지: 로비→1v1→매치→종료→즉시 재큐 무한 반복
+	local wasInMatch = false
 
 	while AutoQueueState.Running and Core.Settings.AutoQueue do
 		local ok, err = pcall(function()
-			-- 게임 중이면 큐 완전 정지 + 전투/렌더 ON
+			-- 게임 중이면 큐 정지 + 전투/렌더 ON, 종료될 때까지 대기
 			if isInMatch() or not canRunAutoQueue() then
 				AutoQueueState.Phase = "ingame"
+				wasInMatch = true
 				if isInMatch() then
 					pcall(function()
 						local fn = getgenv()._SalboEnableMatchFeatures
 						if fn then fn() end
 					end)
 				end
-				task.wait(3)
+				-- Match 속성이 풀릴 때까지 폴링 (한판 끝나면 바로 재큐)
+				for _ = 1, 20 do
+					if not AutoQueueState.Running or not Core.Settings.AutoQueue then
+						return
+					end
+					if canRunAutoQueue() and not isInMatch() then
+						break
+					end
+					task.wait(0.5)
+				end
 				return
 			end
 
+			-- 방금 매치 끝남 → 짧게 쉬고 바로 플레이
+			if wasInMatch then
+				wasInMatch = false
+				AutoQueueState.Phase = "requeue"
+				print("[살보결] Match ended → requeue")
+				task.wait(0.75)
+			end
+
 			if isQueueSearching() then
-				waitForMatchOrQueue(90)
+				AutoQueueState.Phase = "wait"
+				waitForMatchOrQueue(120)
 				return
 			end
 
 			local now = tick()
-			if (AutoQueueState.LastAttempt or 0) > 0 and (now - AutoQueueState.LastAttempt) < 2 then
-				task.wait(0.25)
+			if (AutoQueueState.LastAttempt or 0) > 0 and (now - AutoQueueState.LastAttempt) < 1.5 then
+				task.wait(0.2)
 				return
 			end
 
@@ -4908,16 +4911,20 @@ local function autoQueueLoop()
 					playBtn = findTextButtonExact("play", { preferSmall = false, contains = true })
 				end
 				if playBtn then
+					AutoQueueState.Phase = "play"
 					AutoQueueState.LastAttempt = tick()
 					clickGui(playBtn)
-					for _ = 1, 20 do
-						if not AutoQueueState.Running then return end
-						if isInMatch() then return end
+					for _ = 1, 25 do
+						if not AutoQueueState.Running or not Core.Settings.AutoQueue then return end
+						if isInMatch() then
+							wasInMatch = true
+							return
+						end
 						if isModeMenuOpen() or isQueueSearching() then break end
 						task.wait(0.2)
 					end
 				else
-					task.wait(2)
+					task.wait(1.5)
 				end
 				return
 			end
@@ -4931,13 +4938,17 @@ local function autoQueueLoop()
 				btn1 = findTextButtonExact("1v1", { preferSmall = true, skipBeginner = true })
 			end
 			if btn1 then
+				AutoQueueState.Phase = "1v1"
 				AutoQueueState.LastAttempt = tick()
 				clickGui(btn1)
-				waitForMatchOrQueue(90)
+				waitForMatchOrQueue(120)
+				if isInMatch() then
+					wasInMatch = true
+				end
 				return
 			end
 
-			task.wait(1.2)
+			task.wait(1)
 		end)
 
 		if not ok then
@@ -4961,6 +4972,12 @@ local function setAutoQueueEnabled(enabled)
 	end
 
 	Core.Settings.AutoQueue = enabled
+	-- 텔레포트 reexec 때만 유지 / 수동 실행 시에는 클리어됨
+	if enabled then
+		getgenv()._SalboAutoQueueSession = true
+	else
+		getgenv()._SalboAutoQueueSession = nil
+	end
 	Core:SaveSettings()
 
 	AutoQueueState.Running = false
@@ -4975,7 +4992,7 @@ local function setAutoQueueEnabled(enabled)
 
 		AutoQueueState.Running = true
 		AutoQueueState.Phase = "play"
-		Notify("Auto Queue", "켜짐 (플레이→1v1→대기→반복)")
+		Notify("Auto Queue", "켜짐 — 끄기 전까지 한판 끝→바로 다음 판 반복")
 		AutoQueueState.Thread = task.spawn(autoQueueLoop)
 	else
 		Notify("Auto Queue", "꺼짐")
@@ -5047,27 +5064,19 @@ setupAutoReexec = function()
 	if not queueFn then return false, "executor missing queue_on_teleport" end
 
 	local path = resolveScriptPath()
-	Core.Settings.ScriptUrl = "https://raw.githubusercontent.com/deltosh/test/refs/heads/main/d.lua"
 	local url = tostring(Core.Settings.ScriptUrl or ""):gsub("^%s+", ""):gsub("%s+$", "")
 	local payload
 	local used
 
-	-- URL 우선 (workspace 파일 불필요)
-	if url ~= "" and (string.find(url, "http://", 1, true) == 1 or string.find(url, "https://", 1, true) == 1) then
-		payload = string.format([[
-task.spawn(function()
-	local url = %q
-	local ok, err = pcall(function()
-		loadstring(game:HttpGet(url))()
-	end)
-	if not ok then
-		warn("[살보결] auto reexec HttpGet failed:", err)
-	end
-end)
-]], url)
-		used = url
-	elseif path then
-		payload = string.format([[
+	-- reexec 시 AutoQueue/매치기능 복원용 플래그 (수동 실행과 구분)
+	local header = [[
+getgenv()._SalboReexecFromQueue = true
+getgenv()._SalboAutoQueueSession = true
+]]
+
+	-- 로컬 파일 우선 (깃허브 d.lua는 구버전이라 Name 크래시/기능 누락)
+	if path then
+		payload = header .. string.format([[
 task.spawn(function()
 	local path = %q
 	local ok, err = pcall(function()
@@ -5079,8 +5088,21 @@ task.spawn(function()
 end)
 ]], path)
 		used = path
+	elseif url ~= "" and (string.find(url, "http://", 1, true) == 1 or string.find(url, "https://", 1, true) == 1) then
+		payload = header .. string.format([[
+task.spawn(function()
+	local url = %q
+	local ok, err = pcall(function()
+		loadstring(game:HttpGet(url))()
+	end)
+	if not ok then
+		warn("[살보결] auto reexec HttpGet failed:", err)
+	end
+end)
+]], url)
+		used = url
 	elseif getgenv()._SalboHubSource and type(getgenv()._SalboHubSource) == "string" and #getgenv()._SalboHubSource > 100 then
-		payload = getgenv()._SalboHubSource
+		payload = header .. getgenv()._SalboHubSource
 		used = "embedded"
 	else
 		return false, "reexec url/파일 없음"
@@ -5091,15 +5113,29 @@ end)
 	return true, used
 end
 
--- Load persisted auto settings early (AutoQueue는 항상 OFF로 시작)
+-- Load persisted auto settings early
+-- 수동 실행: AutoQueue 항상 OFF
+-- 텔레포트 reexec: 세션 복원 → Kill All 등 자동 ON
 pcall(function()
 	Core:LoadSettings()
 end)
-Core.Settings.AutoQueue = false
+
+local fromReexec = getgenv()._SalboReexecFromQueue == true
+getgenv()._SalboReexecFromQueue = nil
+
+if fromReexec then
+	-- 매치 텔레포트로 다시 뜬 경우: Auto Queue 세션 유지
+	getgenv()._SalboAutoQueueSession = true
+	Core.Settings.AutoQueue = true
+else
+	-- 로비에서 직접 실행: 버튼 OFF
+	getgenv()._SalboAutoQueueSession = nil
+	Core.Settings.AutoQueue = false
+end
 
 AutoQueueToggle = sections.settings_right:AddToggle({
 	name = "Auto Queue 1v1",
-	default = false,
+	default = Core.Settings.AutoQueue,
 	callback = function(enabled)
 		-- 매칭 대기 중 실수 클릭/오클릭으로 꺼지는 것 방지
 		if AutoQueueState and AutoQueueState.Lock then
@@ -5210,8 +5246,9 @@ local function getMatchToken()
 end
 
 local function onMaybeEnteredMatch(reason)
-	-- 자동매치(Auto Queue) 켰을 때만 KillAll/Spin/Render 자동 ON
-	if not Core.Settings.AutoQueue then
+	-- Auto Queue 세션(버튼 ON 또는 텔레포트 reexec)일 때만 자동 ON
+	local wantFeatures = Core.Settings.AutoQueue or getgenv()._SalboAutoQueueSession == true
+	if not wantFeatures then
 		return
 	end
 	if not isInMatch() then
@@ -5223,14 +5260,15 @@ local function onMaybeEnteredMatch(reason)
 	local now = tick()
 	local token = getMatchToken()
 	local newMatch = token ~= nil and token ~= MatchFeatureState.LastMatchToken
+	local killAllDead = Core.Connections.KillAll == nil
 
-	-- 같은 매치에서 중복 방지 (토큰이 같으면 스킵)
-	if MatchFeatureState.WasInMatch and not newMatch and (now - MatchFeatureState.LastEnable) < 8 then
+	-- 같은 매치에서 중복 방지 (토큰이 같으면 스킵) — 단 Kill All이 꺼져 있으면 재적용
+	if MatchFeatureState.WasInMatch and not newMatch and not killAllDead and (now - MatchFeatureState.LastEnable) < 8 then
 		return
 	end
 
-	-- 매치 토큰 없이 "in match"만 유지되는 경우(라운드 UI 잔존)는 재진입으로만 취급
-	if MatchFeatureState.WasInMatch and not newMatch and token == nil then
+	-- 매치 토큰 없이 "in match"만 유지 + 이미 기능 켜짐 → 스킵
+	if MatchFeatureState.WasInMatch and not newMatch and token == nil and not killAllDead then
 		return
 	end
 
@@ -5300,7 +5338,21 @@ task.defer(function()
 
 	startMatchFeatureWatcher()
 
-	-- Auto Queue는 실행 시 항상 수동으로만 켬 (자동 시작 없음)
+	-- 텔레포트로 매치 진입한 경우 Auto Queue 루프 + 매치 기능 복원
+	if fromReexec and getgenv()._SalboAutoQueueSession then
+		task.wait(0.4)
+		pcall(function()
+			if AutoQueueToggle and AutoQueueToggle.UpdateState then
+				AutoQueueToggle:UpdateState(true, true)
+			else
+				setAutoQueueEnabled(true)
+			end
+		end)
+		task.wait(0.5)
+		if isInMatch() then
+			enableMatchFeatures()
+		end
+	end
 end)
 
 local function cleanup()
