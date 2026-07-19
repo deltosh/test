@@ -2206,29 +2206,52 @@ function Core:GetCharacter(player)
 	return character, humanoid, root
 end
 
+local _CanShootCache = { at = 0, ok = true }
 function Core:CanShoot()
-	local player_gui = LocalPlayer.PlayerGui
-	if not player_gui then return true end
+	local now = tick()
+	if (now - _CanShootCache.at) < 0.1 then
+		return _CanShootCache.ok
+	end
+	_CanShootCache.at = now
+
+	local player_gui = LocalPlayer:FindFirstChild("PlayerGui") or LocalPlayer.PlayerGui
+	if not player_gui then
+		_CanShootCache.ok = true
+		return true
+	end
 
 	local round_countdown = player_gui:FindFirstChild("RoundCountdown")
-
 	if not round_countdown or round_countdown.Enabled == false then
+		_CanShootCache.ok = true
 		return true
 	end
 
 	local countdown_frame = round_countdown:FindFirstChild("CountdownFrame")
-	if not countdown_frame then return true end
+	if not countdown_frame then
+		_CanShootCache.ok = true
+		return true
+	end
 
 	local frame = countdown_frame:FindFirstChild("Frame")
-	if not frame then return true end
+	if not frame then
+		_CanShootCache.ok = true
+		return true
+	end
 
 	local number = frame:FindFirstChild("Number")
-	if not number or not number.Text then return true end
+	if not number or not number.Text then
+		_CanShootCache.ok = true
+		return true
+	end
 
 	local value = tonumber(number.Text)
-	if not value then return true end
+	if not value then
+		_CanShootCache.ok = true
+		return true
+	end
 
-	return value <= 2
+	_CanShootCache.ok = value <= 2
+	return _CanShootCache.ok
 end
 
 function Core:HasLineOfSight(origin, target_character, target_part)
@@ -2777,37 +2800,49 @@ KillAll = sections.combat_left:AddToggle({
 		local shot = false
 		local shoot_time = 0
 		local delay = 6
+		local lastTick = 0
+		local lastEquip = 0
+		local shoot_gun = nil
+		local equipped = nil
 
-		Core.Connections.KillAll = Services.RunService.PreRender:Connect(function()
+		Core.Connections.KillAll = Services.RunService.Heartbeat:Connect(function()
 			if not Core.Features.KillAll.Enabled then return end
-			if not Core:CanShoot() then return end
 
 			local now = tick()
+			if (now - lastTick) < 0.08 then return end
+			lastTick = now
+
+			if not Core:CanShoot() then return end
+
 			local character = LocalPlayer.Character
 			if not character then return end
 
-			local player_humanoid = character:FindFirstChild("Humanoid")
-				or character:FindFirstChildOfClass("Humanoid")
+			local player_humanoid = character:FindFirstChildOfClass("Humanoid")
 			if not player_humanoid or player_humanoid.Health <= 0 then return end
 
-			local remotes = Services.ReplicatedStorage:FindFirstChild("Remotes")
-			local shoot_gun = remotes and remotes:FindFirstChild("ShootGun")
+			if not shoot_gun or not shoot_gun.Parent then
+				local remotes = Services.ReplicatedStorage:FindFirstChild("Remotes")
+				shoot_gun = remotes and remotes:FindFirstChild("ShootGun")
+			end
 			if not shoot_gun then return end
 
-			local backpack = LocalPlayer:FindFirstChild("Backpack") or LocalPlayer.Backpack
-			local equipped = nil
-			if backpack then
-				for _, gun in next, backpack:GetChildren() do
-					if gun:IsA("Tool") and gun:GetAttribute("Cooldown") ~= nil then
-						gun:SetAttribute("Cooldown", 0)
-						gun.Parent = character
+			if (now - lastEquip) >= 0.25 or not equipped or not equipped.Parent then
+				lastEquip = now
+				equipped = nil
+				local backpack = LocalPlayer:FindFirstChild("Backpack")
+				if backpack then
+					for _, gun in next, backpack:GetChildren() do
+						if gun:IsA("Tool") and gun:GetAttribute("Cooldown") ~= nil then
+							gun:SetAttribute("Cooldown", 0)
+							gun.Parent = character
+						end
 					end
 				end
-			end
-			for _, tool in next, character:GetChildren() do
-				if tool:IsA("Tool") and tool:GetAttribute("Cooldown") ~= nil then
-					tool:SetAttribute("Cooldown", 0)
-					equipped = tool
+				for _, tool in next, character:GetChildren() do
+					if tool:IsA("Tool") and tool:GetAttribute("Cooldown") ~= nil then
+						tool:SetAttribute("Cooldown", 0)
+						equipped = tool
+					end
 				end
 			end
 
@@ -2818,24 +2853,20 @@ KillAll = sections.combat_left:AddToggle({
 				local target_character = target.Character
 				if not target_character then continue end
 
-				local humanoid = target_character:FindFirstChild("Humanoid")
-					or target_character:FindFirstChildOfClass("Humanoid")
+				local humanoid = target_character:FindFirstChildOfClass("Humanoid")
 				if not humanoid or humanoid.Health <= 0 then continue end
 
-				-- AutoShoot과 같이 Head 우선 (서버 히트 판정)
 				local hitPart = target_character:FindFirstChild("Head")
 					or target_character:FindFirstChild("HumanoidRootPart")
 				if not hitPart then continue end
 
 				local pos = hitPart.Position
 				if not shot then
-					for _ = 1, 5 do
+					for _ = 1, 3 do
 						shoot_gun:FireServer(pos, pos, hitPart, pos)
 					end
 					any = true
 				elseif (now - shoot_time) >= delay then
-					shoot_gun:FireServer(pos, pos, hitPart, pos)
-					shoot_gun:FireServer(pos, pos, hitPart, pos)
 					shoot_gun:FireServer(pos, pos, hitPart, pos)
 					any = true
 				end
@@ -2864,8 +2895,21 @@ AutoShoot = sections.combat_left:AddToggle({
 		Core.Features.AutoShoot.Enabled = enabled
 
 		if enabled then
+			local lastTick = 0
+			local lastEquip = 0
+			local lastTarget = nil
+			local lastTargetAt = 0
+			local shoot_gun = nil
+			local equipped = nil
+
 			Core.Connections.AutoShoot = Services.RunService.Heartbeat:Connect(function()
 				if not Core.Features.AutoShoot.Enabled then return end
+				if Core.Features.KillAll.Enabled then return end
+
+				local now = tick()
+				if (now - lastTick) < 0.05 then return end
+				lastTick = now
+
 				if not Core:CanShoot() then return end
 
 				local character = LocalPlayer.Character
@@ -2874,40 +2918,43 @@ AutoShoot = sections.combat_left:AddToggle({
 				local player_humanoid = character:FindFirstChildOfClass("Humanoid")
 				if not player_humanoid or player_humanoid.Health <= 0 then return end
 
-				local remotes = Services.ReplicatedStorage:FindFirstChild("Remotes")
-				if not remotes then return end
-
-				local shoot_gun = remotes:FindFirstChild("ShootGun")
+				if not shoot_gun or not shoot_gun.Parent then
+					local remotes = Services.ReplicatedStorage:FindFirstChild("Remotes")
+					shoot_gun = remotes and remotes:FindFirstChild("ShootGun")
+				end
 				if not shoot_gun then return end
 
-				
-				local backpack = LocalPlayer.Backpack
-				if backpack then
-					for _, gun in next, backpack:GetChildren() do
-						if gun:IsA("Tool") and gun:GetAttribute("Cooldown") ~= nil then
-							gun:SetAttribute("Cooldown", 0)
-							gun.Parent = character
+				if (now - lastEquip) >= 0.25 or not equipped or not equipped.Parent then
+					lastEquip = now
+					equipped = nil
+					local backpack = LocalPlayer:FindFirstChild("Backpack")
+					if backpack then
+						for _, gun in next, backpack:GetChildren() do
+							if gun:IsA("Tool") and gun:GetAttribute("Cooldown") ~= nil then
+								gun:SetAttribute("Cooldown", 0)
+								gun.Parent = character
+							end
+						end
+					end
+					for _, tool in next, character:GetChildren() do
+						if tool:IsA("Tool") and tool:GetAttribute("Cooldown") ~= nil then
+							tool:SetAttribute("Cooldown", 0)
+							equipped = tool
 						end
 					end
 				end
 
-				local equipped = nil
-				for _, tool in next, character:GetChildren() do
-					if tool:IsA("Tool") and tool:GetAttribute("Cooldown") ~= nil then
-						tool:SetAttribute("Cooldown", 0)
-						equipped = tool
-					end
+				local target_head = lastTarget
+				if (not target_head) or (not target_head.Parent) or (now - lastTargetAt) > 0.12 then
+					target_head = Core:GetAutoShootTarget()
+					lastTarget = target_head
+					lastTargetAt = now
 				end
-
-				local target_head = Core:GetAutoShootTarget()
 				if not target_head then return end
 
 				local hit_pos = target_head.Position
-
-				
-				for _ = 1, 3 do
-					shoot_gun:FireServer(hit_pos, hit_pos, target_head, hit_pos)
-				end
+				shoot_gun:FireServer(hit_pos, hit_pos, target_head, hit_pos)
+				shoot_gun:FireServer(hit_pos, hit_pos, target_head, hit_pos)
 
 				if equipped then
 					pcall(function()
@@ -3011,25 +3058,32 @@ KnifeAura = sections.combat_left:AddToggle({
 		Core.Features.KnifeAura.Enabled = enabled
 
 		if enabled then
-			Core.Connections.KnifeAura = Services.RunService.PreRender:Connect(function()
+			local lastTick = 0
+			local stabRemote = nil
+			Core.Connections.KnifeAura = Services.RunService.Heartbeat:Connect(function()
+				local now = tick()
+				if (now - lastTick) < 0.1 then return end
+				lastTick = now
+
 				local closest = Core:GetClosest({
 					range = 500,
 					priority = "Character",
 					wall_check = false
 				})
-				
 				if not closest then return end
-				
-				local humanoid = closest:FindFirstChild("Humanoid")
+
+				local humanoid = closest:FindFirstChildOfClass("Humanoid")
 				if not humanoid or humanoid.Health <= 0 then return end
-				
+
 				local humanoid_root_part = closest:FindFirstChild("HumanoidRootPart")
 				if not humanoid_root_part then return end
-				
-				local args = {
-					humanoid_root_part
-				}
-				Services.ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("Stab"):FireServer(unpack(args))
+
+				if not stabRemote or not stabRemote.Parent then
+					local remotes = Services.ReplicatedStorage:FindFirstChild("Remotes")
+					stabRemote = remotes and remotes:FindFirstChild("Stab")
+				end
+				if not stabRemote then return end
+				stabRemote:FireServer(humanoid_root_part)
 			end)
 
 		else
@@ -3049,22 +3103,27 @@ SetCooldown = sections.combat_right:AddToggle({
 		Core.Features.SetCooldown.Enabled = enabled
 
 		if enabled then
-			Core.Connections.SetCooldown = Services.RunService.PreRender:Connect(function()
+			local lastTick = 0
+			Core.Connections.SetCooldown = Services.RunService.Heartbeat:Connect(function()
+				local now = tick()
+				if (now - lastTick) < 0.15 then return end
+				lastTick = now
+
 				local character = LocalPlayer.Character
 				if not character then return end
-				
-				local backpack = LocalPlayer.Backpack
-				if not backpack then return end
-				
-				for _, gun in next, backpack:GetChildren() do
-					if gun:GetAttribute("Cooldown") then
-						gun:SetAttribute("Cooldown", Core.Features.SetCooldown.Cooldown)
+
+				local backpack = LocalPlayer:FindFirstChild("Backpack")
+				local cd = Core.Features.SetCooldown.Cooldown
+				if backpack then
+					for _, gun in next, backpack:GetChildren() do
+						if gun:GetAttribute("Cooldown") ~= nil then
+							gun:SetAttribute("Cooldown", cd)
+						end
 					end
 				end
-				
 				for _, gun in next, character:GetChildren() do
-					if gun:GetAttribute("Cooldown") then
-						gun:SetAttribute("Cooldown", Core.Features.SetCooldown.Cooldown)
+					if gun:GetAttribute("Cooldown") ~= nil then
+						gun:SetAttribute("Cooldown", cd)
 					end
 				end
 			end)
@@ -3095,22 +3154,27 @@ SetThrowSpeed = sections.combat_right:AddToggle({
 		Core.Features.SetThrowSpeed.Enabled = enabled
 
 		if enabled then
-			Core.Connections.SetThrowSpeed = Services.RunService.PreRender:Connect(function()
+			local lastTick = 0
+			Core.Connections.SetThrowSpeed = Services.RunService.Heartbeat:Connect(function()
+				local now = tick()
+				if (now - lastTick) < 0.15 then return end
+				lastTick = now
+
 				local character = LocalPlayer.Character
 				if not character then return end
-				
-				local backpack = LocalPlayer.Backpack
-				if not backpack then return end
 
-				for _, knife in next, backpack:GetChildren() do
-					if knife:GetAttribute("ThrowSpeed") then
-						knife:SetAttribute("ThrowSpeed", Core.Features.SetThrowSpeed.Speed)
+				local speed = Core.Features.SetThrowSpeed.Speed
+				local backpack = LocalPlayer:FindFirstChild("Backpack")
+				if backpack then
+					for _, knife in next, backpack:GetChildren() do
+						if knife:GetAttribute("ThrowSpeed") ~= nil then
+							knife:SetAttribute("ThrowSpeed", speed)
+						end
 					end
 				end
-				
 				for _, knife in next, character:GetChildren() do
-					if knife:GetAttribute("ThrowSpeed") then
-						knife:SetAttribute("ThrowSpeed", Core.Features.SetThrowSpeed.Speed)
+					if knife:GetAttribute("ThrowSpeed") ~= nil then
+						knife:SetAttribute("ThrowSpeed", speed)
 					end
 				end
 			end)
@@ -3141,7 +3205,12 @@ HitboxExtender = sections.combat_right:AddToggle({
 		Core.Features.HitboxExtender.Enabled = enabled
 
 		if enabled then
-			Core.Connections.HitboxExtender = Services.RunService.PreRender:Connect(function()
+			local lastTick = 0
+			Core.Connections.HitboxExtender = Services.RunService.Heartbeat:Connect(function()
+				local now = tick()
+				if (now - lastTick) < 0.2 then return end
+				lastTick = now
+
 				local size = tonumber(Core.Features.HitboxExtender.Size) or 50
 				local transparency = tonumber(Core.Features.HitboxExtender.Transparency)
 				if transparency == nil then transparency = 0.5 end
@@ -3349,8 +3418,12 @@ local function setNoFogEnabled(enabled)
 			Core.Features.NoFog.Original = NoFog_CaptureOriginal()
 		end
 		NoFog_Apply()
+		local lastApply = 0
 		Core.Connections.NoFog = Services.RunService.Heartbeat:Connect(function()
 			if not Core.Features.NoFog.Enabled then return end
+			local now = tick()
+			if (now - lastApply) < 1.5 then return end
+			lastApply = now
 			NoFog_Apply()
 		end)
 	else
@@ -3493,10 +3566,13 @@ Walkspeed = sections.mobility_left:AddToggle({
 		Core.Features.Walkspeed.Enabled = enabled
 
 		if enabled then
-			Core.Connections.Walkspeed = Services.RunService.PreRender:Connect(function()
-				local character, humanoid, humanoid_root_part = Core:GetParts(LocalPlayer)
-				if not character or not humanoid or not humanoid_root_part then return end
-
+			local lastTick = 0
+			Core.Connections.Walkspeed = Services.RunService.Heartbeat:Connect(function()
+				local now = tick()
+				if (now - lastTick) < 0.2 then return end
+				lastTick = now
+				local character, humanoid = Core:GetParts(LocalPlayer)
+				if not humanoid then return end
 				humanoid.WalkSpeed = Core.Features.Walkspeed.Speed
 			end)
 		else
@@ -3531,10 +3607,13 @@ JumpPower = sections.mobility_left:AddToggle({
 		Core.Features.JumpPower.Enabled = enabled
 
 		if enabled then
-			Core.Connections.JumpPower = Services.RunService.PreRender:Connect(function()
-				local character, humanoid = Core:GetParts(LocalPlayer)
+			local lastTick = 0
+			Core.Connections.JumpPower = Services.RunService.Heartbeat:Connect(function()
+				local now = tick()
+				if (now - lastTick) < 0.2 then return end
+				lastTick = now
+				local _, humanoid = Core:GetParts(LocalPlayer)
 				if not humanoid then return end
-
 				if humanoid.UseJumpPower then
 					humanoid.JumpPower = Core.Features.JumpPower.Power
 				else
@@ -3577,7 +3656,11 @@ FOV = sections.mobility_left:AddToggle({
 		Core.Features.FOV.Enabled = enabled
 
 		if enabled then
-			Core.Connections.FOV = Services.RunService.PreRender:Connect(function()
+			local lastTick = 0
+			Core.Connections.FOV = Services.RunService.Heartbeat:Connect(function()
+				local now = tick()
+				if (now - lastTick) < 0.2 then return end
+				lastTick = now
 				Camera.FieldOfView = Core.Features.FOV.Value
 			end)
 		else
@@ -3609,7 +3692,11 @@ Gravity = sections.mobility_left:AddToggle({
 		Core.Features.Gravity.Enabled = enabled
 
 		if enabled then
-			Core.Connections.Gravity = Services.RunService.PreRender:Connect(function()
+			local lastTick = 0
+			Core.Connections.Gravity = Services.RunService.Heartbeat:Connect(function()
+				local now = tick()
+				if (now - lastTick) < 0.2 then return end
+				lastTick = now
 				workspace.Gravity = Core.Features.Gravity.Value
 			end)
 		else
@@ -3643,13 +3730,18 @@ Phase = sections.mobility_right:AddToggle({
 		if enabled then
 			Core.Features.Phase.OriginalCollision = {}
 
-			Core.Connections.Phase = Services.RunService.PreRender:Connect(function()
+			local lastScan = 0
+			Core.Connections.Phase = Services.RunService.Heartbeat:Connect(function()
 				local character = LocalPlayer.Character
 				if not character then return end
-				
-				for _, part in next, character:GetDescendants() do
-					if part:IsA("BasePart") and Core.Features.Phase.OriginalCollision[part] == nil then
-						Core.Features.Phase.OriginalCollision[part] = part.CanCollide
+
+				local now = tick()
+				if (now - lastScan) >= 0.5 then
+					lastScan = now
+					for _, part in next, character:GetDescendants() do
+						if part:IsA("BasePart") and Core.Features.Phase.OriginalCollision[part] == nil then
+							Core.Features.Phase.OriginalCollision[part] = part.CanCollide
+						end
 					end
 				end
 
@@ -3889,14 +3981,17 @@ ESPTeamCheck = sections.render_left:AddToggle({
 		Core.Features.PlayerESP.TeamCheck = value
 		
 		if value then
-			Core.Connections.TeamCheck = Services.RunService.PreRender:Connect(function()
+			local lastTick = 0
+			Core.Connections.TeamCheck = Services.RunService.Heartbeat:Connect(function()
+				local now = tick()
+				if (now - lastTick) < 0.4 then return end
+				lastTick = now
+				if not EspInstance then return end
 				for _, target in next, Services.Players:GetPlayers() do
-					if EspInstance then
-						if target.Team == LocalPlayer.Team then
-							EspInstance:Destroy(target)
-						else
-							EspInstance:Add(target)
-						end
+					if target.Team and LocalPlayer.Team and target.Team == LocalPlayer.Team then
+						EspInstance:Destroy(target)
+					else
+						EspInstance:Add(target)
 					end
 				end
 			end)
@@ -3916,17 +4011,19 @@ ESPRemoveHidden = sections.render_left:AddToggle({
 		Core.Features.PlayerESP.RemoveHiddenCharacters = value
 
 		if value then
-			Core.Connections.RemoveHiddenCharacters = Services.RunService.PreRender:Connect(function()
+			local lastTick = 0
+			Core.Connections.RemoveHiddenCharacters = Services.RunService.Heartbeat:Connect(function()
+				local now = tick()
+				if (now - lastTick) < 0.4 then return end
+				lastTick = now
+				if not EspInstance then return end
 				for _, target in next, Services.Players:GetPlayers() do
 					local character = target.Character
-					if not character or not character.Parent or not character.Parent.Parent then return end
-					
-					if EspInstance then
-						if character.Parent.Parent == Services.ReplicatedStorage then
-							EspInstance:Destroy(target)
-						else
-							EspInstance:Add(target)
-						end
+					if not character or not character.Parent or not character.Parent.Parent then continue end
+					if character.Parent.Parent == Services.ReplicatedStorage then
+						EspInstance:Destroy(target)
+					else
+						EspInstance:Add(target)
 					end
 				end
 			end)
@@ -4933,8 +5030,12 @@ local function fireConnections(obj)
 	return fired
 end
 
+local _GuiScanCache = { at = 0, list = nil }
+
 local function clickGui(inst)
 	if not inst then return false end
+	_GuiScanCache.at = 0
+	_GuiScanCache.list = nil
 
 	local target = inst
 	if not (target:IsA("GuiButton") or target:IsA("ImageButton")) then
@@ -5080,33 +5181,46 @@ local function isQueueSearching()
 	return false
 end
 
+local _JoinErrCache = { at = 0, hit = false }
 local function hasJoinErrorToast()
+	local now = tick()
+	if (now - _JoinErrCache.at) < 1.0 then
+		return _JoinErrCache.hit
+	end
+	_JoinErrCache.at = now
+	_JoinErrCache.hit = false
 	if isQueueSearching() then return false end
 	local pg = LocalPlayer:FindFirstChild("PlayerGui")
 	if not pg then return false end
-	for _, d in ipairs(pg:GetDescendants()) do
-		if d:IsA("TextLabel") or d:IsA("TextButton") then
-			local okVis, vis = pcall(isVisibleGui, d)
-			if okVis and vis then
-				local t = normalizeGuiText(d.Text)
-				if string.find(t, "가입 오류", 1, true) or string.find(t, "join error", 1, true) then
-					local full = ""
-					pcall(function() full = string.lower(d:GetFullName()) end)
-					if not string.find(full, "salbonotify", 1, true) then
-						return true
-					end
-				end
+	-- 전체 GetDescendants 대신 캐시된 스캔 사용
+	scanPlayerGui(function(d)
+		if _JoinErrCache.hit then return end
+		if not (d:IsA("TextLabel") or d:IsA("TextButton")) then return end
+		local okVis, vis = pcall(isVisibleGui, d)
+		if not (okVis and vis) then return end
+		local t = normalizeGuiText(d.Text)
+		if string.find(t, "가입 오류", 1, true) or string.find(t, "join error", 1, true) then
+			local name = string.lower(tostring(d.Name))
+			if not string.find(name, "salbo", 1, true) then
+				_JoinErrCache.hit = true
 			end
 		end
-	end
-	return false
+	end)
+	return _JoinErrCache.hit
 end
 
 local function scanPlayerGui(callback)
 	local pg = LocalPlayer:FindFirstChild("PlayerGui")
 	if not pg then return end
-	for _, d in ipairs(pg:GetDescendants()) do
-		callback(d)
+	local now = tick()
+	if (not _GuiScanCache.list) or (now - _GuiScanCache.at) > 0.75 then
+		_GuiScanCache.list = pg:GetDescendants()
+		_GuiScanCache.at = now
+	end
+	for _, d in ipairs(_GuiScanCache.list) do
+		if d and d.Parent then
+			callback(d)
+		end
 	end
 end
 
@@ -5203,8 +5317,7 @@ local function waitForMatchOrQueue(timeoutSec)
 
 	while AutoQueueState.Running and Core.Settings.AutoQueue and (tick() - startT) < timeoutSec do
 		if isInMatch() or not canRunAutoQueue() then
-			print("[살보결] AutoQueue stop wait — in match")
-			return true
+						return true
 		end
 
 		if isQueueSearching() then
@@ -5219,14 +5332,12 @@ local function waitForMatchOrQueue(timeoutSec)
 			elseif lastSawSearch == 0 and elapsed < 8 then
 				if not joinErrChecked and elapsed >= 1.0 and elapsed <= 5 and hasJoinErrorToast() then
 					joinErrChecked = true
-					print("[살보결] AutoQueue join rejected")
-					task.wait(3)
+										task.wait(3)
 					return false
 				end
 				task.wait(0.4)
 			else
-				print("[살보결] AutoQueue wait end (not searching)")
-				return false
+								return false
 			end
 		end
 	end
@@ -5235,8 +5346,7 @@ local function waitForMatchOrQueue(timeoutSec)
 end
 
 local function autoQueueLoop()
-	Notify("Auto Queue", "로비에서만 큐")
-	print("[살보결] AutoQueue start place=", game.PlaceId, "inMatch=", isInMatch())
+	-- AutoQueue silent start
 
 	while AutoQueueState.Running and Core.Settings.AutoQueue do
 		local ok, err = pcall(function()
@@ -5248,7 +5358,6 @@ local function autoQueueLoop()
 			end
 
 			if isQueueSearching() then
-				print("[살보결] AutoQueue searching — wait")
 				waitForMatchOrQueue(90)
 				return
 			end
@@ -5266,8 +5375,6 @@ local function autoQueueLoop()
 				end
 				if playBtn then
 					AutoQueueState.LastAttempt = tick()
-					Notify("Auto Queue", "1) 플레이")
-					print("[살보결] click play", playBtn:GetFullName())
 					clickGui(playBtn)
 					for _ = 1, 20 do
 						if not AutoQueueState.Running then return end
@@ -5276,7 +5383,6 @@ local function autoQueueLoop()
 						task.wait(0.2)
 					end
 				else
-					print("[살보결] play not found")
 					task.wait(2)
 				end
 				return
@@ -5292,8 +5398,6 @@ local function autoQueueLoop()
 			end
 			if btn1 then
 				AutoQueueState.LastAttempt = tick()
-				Notify("Auto Queue", "2) 1v1")
-				print("[살보결] click 1v1", btn1:GetFullName())
 				clickGui(btn1)
 				waitForMatchOrQueue(90)
 				return
@@ -5311,7 +5415,6 @@ local function autoQueueLoop()
 	AutoQueueState.Running = false
 	AutoQueueState.Thread = nil
 	AutoQueueState.Lock = false
-	print("[살보결] AutoQueue end")
 end
 
 local function setAutoQueueEnabled(enabled)
