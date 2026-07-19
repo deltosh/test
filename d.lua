@@ -42,22 +42,21 @@ local mouse = gs("Players").LocalPlayer:GetMouse()
 local Library = {
 Ui_Bind = Enum.KeyCode.RightShift,
 Colors = {
-Window = Color3.fromRGB(28, 30, 36),
-BorderColor = Color3.fromRGB(70, 74, 88),
+Window = Color3.fromRGB(9, 9, 9),
+BorderColor = Color3.fromRGB(40, 40, 40),
 Accent = Color3.fromRGB(139, 158, 252), 
-TopBar = Color3.fromRGB(34, 36, 44),
-TopText = Color3.fromRGB(210, 214, 225),
-TabContainer = Color3.fromRGB(28, 30, 36),
-TabActive = Color3.fromRGB(245, 247, 255),
-TabInactive = Color3.fromRGB(170, 176, 190),
-ContentContainer = Color3.fromRGB(28, 30, 36),
-Section = Color3.fromRGB(34, 36, 44),
-SectionText = Color3.fromRGB(200, 206, 220),
-RiskyActive = Color3.fromRGB(230, 70, 70),
-RiskyInactive = Color3.fromRGB(160, 60, 60),
-ElementActive = Color3.fromRGB(230, 234, 245),
-ElementInactive = Color3.fromRGB(175, 180, 195),
-ElementBack = Color3.fromRGB(48, 52, 64),
+TopBar = Color3.fromRGB(9, 9, 9),
+TopText = Color3.fromRGB(100,100,100),
+TabContainer = Color3.fromRGB(9, 9, 9),
+TabActive = Color3.fromRGB(200, 200, 200),
+TabInactive = Color3.fromRGB(100, 100, 100),
+ContentContainer = Color3.fromRGB(9, 9, 9),
+Section = Color3.fromRGB(9, 9, 9),
+SectionText = Color3.fromRGB(150,150,150),
+RiskyActive = Color3.fromRGB(200, 0, 0),
+RiskyInactive = Color3.fromRGB(100, 0, 0),
+ElementActive = Color3.fromRGB(125, 125, 125),
+ElementInactive = Color3.fromRGB(80, 80, 80),
 },
 Instances = {},
 Connections = {},
@@ -694,7 +693,7 @@ Parent = BUTTONCONTAINER,
 Size = UDim2.new(1, 0, 1, 0),
 Position = UDim2.new(0, 0, 0, 0),
 Name = "Button",
-BackgroundColor3 = Library.Colors.ElementBack,
+BackgroundColor3 = Color3.fromRGB(20, 20, 20),
 BorderSizePixel = 1,
 BorderColor3 = Library.Colors.BorderColor
 })
@@ -745,7 +744,7 @@ callback = function() end,
 local TEXTBOX = Library:Create("Frame", {
 Parent = ELEMENTCONTAINER,
 Name = "textbox",
-BackgroundColor3 = Library.Colors.ElementBack,
+BackgroundColor3 = Color3.fromRGB(20,20,20),
 BackgroundTransparency = 0,
 BorderSizePixel = 1,
 BorderColor3 = Library.Colors.BorderColor,
@@ -836,7 +835,7 @@ Name = "ToggleContainer",
 local TOGGLE = Library:Create("Frame", {
 Parent = TOGGLECONTAINER,
 Size = UDim2.new(0,9,0,9),
-BackgroundColor3 = Library.Colors.ElementBack,
+BackgroundColor3 = Color3.fromRGB(20, 20, 20),
 AnchorPoint = Vector2.new(0, 0.5),
 Position = UDim2.new(0, 0, 0.5, 0),
 Name = "Toggle",
@@ -895,14 +894,14 @@ if toggle.State then
 Library:tween(TOGGLE, {BackgroundColor3 = Library.Colors.Accent})
 Library:tween(TOGGLETITLE, {TextColor3 = Library.Colors.ElementActive})
 else
-Library:tween(TOGGLE, {BackgroundColor3 = Library.Colors.ElementBack})
+Library:tween(TOGGLE, {BackgroundColor3 = Color3.fromRGB(20, 20, 20)})
 Library:tween(TOGGLETITLE, {TextColor3 = Library.Colors.ElementInactive})
 end
 if toggle.State and options.risky then
 Library:tween(TOGGLE, {BackgroundColor3 = Library.Colors.Accent})
 Library:tween(TOGGLETITLE, {TextColor3 = Library.Colors.RiskyActive})
 elseif options.risky then
-Library:tween(TOGGLE, {BackgroundColor3 = Library.Colors.ElementBack})
+Library:tween(TOGGLE, {BackgroundColor3 = Color3.fromRGB(20, 20, 20)})
 Library:tween(TOGGLETITLE, {TextColor3 = Library.Colors.RiskyInactive})
 end
 end
@@ -918,14 +917,14 @@ if toggle.State then
 Library:tween(TOGGLE, {BackgroundColor3 = Library.Colors.Accent})
 Library:tween(TOGGLETITLE, {TextColor3 = Library.Colors.ElementActive})
 else
-Library:tween(TOGGLE, {BackgroundColor3 = Library.Colors.ElementBack})
+Library:tween(TOGGLE, {BackgroundColor3 = Color3.fromRGB(20, 20, 20)})
 Library:tween(TOGGLETITLE, {TextColor3 = Library.Colors.ElementInactive})
 end
 if toggle.State and options.risky then
 Library:tween(TOGGLE, {BackgroundColor3 = Library.Colors.Accent})
 Library:tween(TOGGLETITLE, {TextColor3 = Library.Colors.RiskyActive})
 elseif options.risky then
-Library:tween(TOGGLE, {BackgroundColor3 = Library.Colors.ElementBack})
+Library:tween(TOGGLE, {BackgroundColor3 = Color3.fromRGB(20, 20, 20)})
 Library:tween(TOGGLETITLE, {TextColor3 = Library.Colors.RiskyInactive})
 end
 end
@@ -936,7 +935,7 @@ if toggle.State then
 Library:tween(TOGGLE, {BackgroundColor3 = Library.Colors.Accent})
 Library:tween(TOGGLETITLE, {TextColor3 = options.risky and Library.Colors.RiskyActive or Library.Colors.ElementActive})
 else
-Library:tween(TOGGLE, {BackgroundColor3 = Library.Colors.ElementBack})
+Library:tween(TOGGLE, {BackgroundColor3 = Color3.fromRGB(20, 20, 20)})
 Library:tween(TOGGLETITLE, {TextColor3 = options.risky and Library.Colors.RiskyInactive or Library.Colors.ElementInactive})
 end
 if fire ~= false then
@@ -957,7 +956,7 @@ Key = nil,
 local KEYBIND = Library:Create("Frame", {
 Parent = SUBELEMENTHOLDER,
 Name = "Keybind",
-BackgroundColor3 = Library.Colors.ElementBack,
+BackgroundColor3 = Color3.fromRGB(20,20,20),
 BorderSizePixel = 0
 })
 local KEYBINDTEXT = Library:Create("TextLabel", {
@@ -1546,7 +1545,7 @@ end
 end)
 end
 options.callback(slider:GetValue())
-return slider
+return toggle
 end
 function section:AddDropdown(options)
 options = Library:validate({
@@ -1589,7 +1588,7 @@ AnchorPoint = Vector2.new(0.5, 0),
 Position = UDim2.new(0.5, 0, 0, 13),
 Parent = DROPDOWNCONTAINER,
 BorderSizePixel = 1,
-BackgroundColor3 = Library.Colors.ElementBack,
+BackgroundColor3 = Color3.fromRGB(20,20,20),
 BorderColor3 = Library.Colors.BorderColor,
 Name = "ActiveChoice",
 ZIndex = dropdownindex + 5
@@ -1617,7 +1616,6 @@ TextSize = 11,
 Name = "DropdownText",
 ZIndex = dropdownindex + 5,
 })
-dropdown.ActiveTextLabel = ACTIVETEXT
 local CHOICEHOLDER = Library:Create("ScrollingFrame", {
 Size = UDim2.new(1, -1, 0, 0),
 CanvasSize = UDim2.new(0,0,10,0),
@@ -1638,29 +1636,6 @@ Padding = UDim.new(0, 0),
 Name = "ChoiceLayout",
 })
 function dropdown:AddChoice(name)
--- skip duplicates
-for _, child in ipairs(CHOICEHOLDER:GetChildren()) do
-if child:IsA("Frame") then
-local label = child:FindFirstChildWhichIsA("TextLabel")
-if label and label.Text == name then
-return
-end
-end
-end
--- remove placeholder
-for _, child in ipairs(CHOICEHOLDER:GetChildren()) do
-if child:IsA("Frame") then
-local label = child:FindFirstChildWhichIsA("TextLabel")
-if label and label.Text == "(none)" then
-child:Destroy()
-for i = #dropdown.active, 1, -1 do
-if dropdown.active[i] == "(none)" then
-table.remove(dropdown.active, i)
-end
-end
-end
-end
-end
 local choice = {
 Name = name,
 Hover = false,
@@ -1767,28 +1742,18 @@ leave:Disconnect()
 end)
 end)
 end
-dropdown:UpdateSize()
-end
-function dropdown:UpdateSize()
-local endsize = 0
-for _, choice in ipairs(CHOICEHOLDER:GetChildren()) do
-if choice:IsA("Frame") then
-endsize = endsize + 15
-end
-end
-if endsize > 100 then endsize = 100 end
-if endsize < 15 then endsize = 15 end
-dropdown.endsize = endsize
-if dropdown.state then
-ACTIVECHOICE.Size = UDim2.new(1,0,1,endsize - 13)
-CHOICEHOLDER.Size = UDim2.new(1,-1,0,endsize - 2)
-end
-end
+end 
 for _,v in pairs(options.list) do
 dropdown:AddChoice(v)
 end
 do
-dropdown:UpdateSize()
+local endsize = 0
+for _, choice in ipairs(CHOICEHOLDER:GetChildren()) do
+if choice:IsA("Frame") then
+if endsize + choice.AbsoluteSize.Y > 100 then endsize = 100
+else endsize = endsize + choice.AbsoluteSize.Y end
+end
+end
 local Cholderhovered
 Library:connection(CHOICEHOLDER.MouseEnter, function()
 Cholderhovered = true
@@ -1803,7 +1768,6 @@ if dropdown.state ~= true then Library:tween(ACTIVETEXT, {TextColor3 = Library.C
 local input = Library:connection(_uis.InputBegan, function(input)
 if input.UserInputType == Enum.UserInputType.MouseButton1 and not Cholderhovered then
 dropdown.state = not dropdown.state
-local endsize = dropdown.endsize or 15
 if dropdown.state then
 Library:tween(ACTIVETEXT, {TextColor3 = Library.Colors.ElementActive})
 Library:tween(ACTIVECHOICE, {Size = UDim2.new(1,0,1,endsize - 13)})
@@ -1825,7 +1789,7 @@ end
 end)
 end)
 end
-return dropdown
+return section
 end
 function section:AddList(options)
 options = Library:validate({
@@ -1848,8 +1812,8 @@ BackgroundTransparency = 0,
 Library:Create("UIGradient", {
 Parent = LISTCONTAINER,
 Color = ColorSequence.new{
-ColorSequenceKeypoint.new(0, Color3.fromRGB(70, 74, 88)),
-ColorSequenceKeypoint.new(1, Library.Colors.ElementBack)
+ColorSequenceKeypoint.new(0, Color3.fromRGB(50, 50, 50)),
+ColorSequenceKeypoint.new(1, Color3.fromRGB(20, 20, 20))
 },
 Rotation = 90,
 })
@@ -2032,8 +1996,6 @@ dragging = false
 end
 end)
 end
-menu.Window = WINDOW
-menu.ScreenGui = SCREENGUI
 return menu
 end
 getgenv()._OdysseyUnload = function()
@@ -2045,7 +2007,7 @@ end)()
 
 Services.HttpService = game:GetService("HttpService")
 
-local folder_name = "MVSD"
+local folder_name = "UDSploit/15385224902"
 
 Core.Features.KillAll = {
 	Enabled = false
@@ -2158,21 +2120,11 @@ Core.Features.PlayerESP = {
 	Box = false,
 	Tracer = false,
 	Skeleton = false,
-	Arrows = false,
+	Arrow = false,
 	Name = false,
 	Rainbow = false,
 	DefaultColor = Color3.fromRGB(255, 255, 255),
 	MaxDistance = 1000
-}
-
-Core.Settings = {
-	AutoQueue = false,
-	AutoReexec = true,
-	AutoLoadConfig = true,
-	ConfigName = "default",
-	ScriptPath = "살보결 hub.lua",
-	ScriptUrl = "https://raw.githubusercontent.com/deltosh/test/refs/heads/main/d.lua", -- hardcoded reexec source (UI hidden)
-	SettingsFile = "MVSD/settings.json",
 }
 
 Core.Features.Aura = {
@@ -2184,7 +2136,7 @@ Core.Features.SkinChanger = {
 	ActiveId = nil,
 	Saved = {},
 	Applying = false,
-	SaveFile = "MVSD/skins.json",
+	SaveFile = "살보결_SavedSkins.json",
 }
 
 Core.Config = {
@@ -2211,7 +2163,7 @@ function Core:CanShoot()
 	if not player_gui then return true end
 
 	local round_countdown = player_gui:FindFirstChild("RoundCountdown")
-
+	
 	if not round_countdown or round_countdown.Enabled == false then
 		return true
 	end
@@ -2274,9 +2226,7 @@ function Core:GetAutoShootTarget()
 
 	for _, target in next, Services.Players:GetPlayers() do
 		if target == LocalPlayer then continue end
-		local myMatch = LocalPlayer:GetAttribute("Match")
-		local theirMatch = target:GetAttribute("Match")
-		if myMatch ~= nil and theirMatch ~= nil and myMatch ~= theirMatch then continue end
+		if target:GetAttribute("Match") ~= LocalPlayer:GetAttribute("Match") then continue end
 
 		
 		if LocalPlayer.Team and target.Team and target.Team == LocalPlayer.Team then
@@ -2325,11 +2275,9 @@ function Core:GetClosest(values)
 		local target_character = target.Character
 		if not target_character then continue end
 
-		local myMatch = LocalPlayer:GetAttribute("Match")
-		local theirMatch = target:GetAttribute("Match")
-		if myMatch ~= nil and theirMatch ~= nil and myMatch ~= theirMatch then continue end
+		if target.GetAttribute(target, "Match") ~= LocalPlayer.GetAttribute(LocalPlayer, "Match") then continue end
 
-		if LocalPlayer.Team and target.Team and target.Team == LocalPlayer.Team then continue end
+		if target.Team == LocalPlayer.Team then continue end
 
 		local target_humanoid_root_part = target_character.FindFirstChild(target_character, "HumanoidRootPart")
 		if not target_humanoid_root_part then continue end
@@ -2395,8 +2343,11 @@ function Core:EnsureConfigFolder()
 	if typeof(makefolder) ~= "function" or typeof(writefile) ~= "function" then
 		return false, "executor missing file API"
 	end
-	if not isfolder("MVSD") then
-		makefolder("MVSD")
+	if not isfolder("UDSploit") then
+		makefolder("UDSploit")
+	end
+	if not isfolder(folder_name) then
+		makefolder(folder_name)
 	end
 	if not isfolder(folder_name .. "/configs") then
 		makefolder(folder_name .. "/configs")
@@ -2454,29 +2405,10 @@ function Core:DeserializeFeatures(data)
 				if k ~= "Hook" and k ~= "OriginalCollision" and k ~= "Original" and k ~= "Saved" and k ~= "Applying" and k ~= "ActiveId" then
 					if type(v) == "table" and (v.__type == "Color3" or v.R or v.r) then
 						feature[k] = Color3.new(v.R or v.r or 1, v.G or v.g or 1, v.B or v.b or 1)
-					elseif type(feature[k]) == "boolean" or type(v) == "boolean" then
-						-- JSON/레거시에서 1/0/"true" 도 허용
-						if type(v) == "boolean" then
-							feature[k] = v
-						elseif type(v) == "number" then
-							feature[k] = v ~= 0
-						elseif type(v) == "string" then
-							local lower = string.lower(v)
-							feature[k] = (lower == "true" or lower == "1" or lower == "yes")
-						else
-							feature[k] = v and true or false
-						end
 					elseif typeof(feature[k]) ~= "function" then
 						feature[k] = v
 					end
 				end
-			end
-			-- legacy key
-			if fname == "PlayerESP" and values.Arrow ~= nil and feature.Arrows == nil then
-				feature.Arrows = values.Arrow and true or false
-			end
-			if fname == "PlayerESP" and values.Arrow ~= nil and values.Arrows == nil then
-				feature.Arrows = values.Arrow and true or false
 			end
 		end
 	end
@@ -2560,54 +2492,6 @@ function Core:DeleteConfig(name)
 	end
 	return true
 end
-
-function Core:SaveSettings()
-	if typeof(writefile) ~= "function" then return false end
-	pcall(function()
-		Core:EnsureConfigFolder()
-	end)
-	local payload = {
-		AutoQueue = Core.Settings.AutoQueue and true or false,
-		AutoReexec = Core.Settings.AutoReexec and true or false,
-		AutoLoadConfig = Core.Settings.AutoLoadConfig and true or false,
-		ConfigName = tostring(Core.Settings.ConfigName or "default"),
-		ScriptPath = tostring(Core.Settings.ScriptPath or "살보결 hub.lua"),
-		ScriptUrl = tostring(Core.Settings.ScriptUrl or ""),
-	}
-	local ok, encoded = pcall(function()
-		return Services.HttpService:JSONEncode(payload)
-	end)
-	if not ok then return false end
-	return pcall(writefile, Core.Settings.SettingsFile, encoded)
-end
-
-function Core:LoadSettings()
-	if typeof(isfile) ~= "function" or typeof(readfile) ~= "function" then return false end
-	if not isfile(Core.Settings.SettingsFile) then return false end
-	local ok, raw = pcall(readfile, Core.Settings.SettingsFile)
-	if not ok then return false end
-	local decode_ok, data = pcall(function()
-		return Services.HttpService:JSONDecode(raw)
-	end)
-	if not decode_ok or type(data) ~= "table" then return false end
-	if data.AutoQueue ~= nil then Core.Settings.AutoQueue = data.AutoQueue and true or false end
-	if data.AutoReexec ~= nil then Core.Settings.AutoReexec = data.AutoReexec and true or false end
-	if data.AutoLoadConfig ~= nil then Core.Settings.AutoLoadConfig = data.AutoLoadConfig and true or false end
-	if data.ConfigName ~= nil then Core.Settings.ConfigName = tostring(data.ConfigName) end
-	if data.ScriptPath ~= nil then Core.Settings.ScriptPath = tostring(data.ScriptPath) end
-	if data.ScriptUrl ~= nil and tostring(data.ScriptUrl) ~= "" then
-		Core.Settings.ScriptUrl = tostring(data.ScriptUrl)
-	end
-	return true
-end
-
-pcall(function()
-	Core:LoadSettings()
-	if Core.Settings.ConfigName and Core.Settings.ConfigName ~= "" then
-		Core.Config.NameInput = Core.Settings.ConfigName
-		Core.Config.Selected = Core.Settings.ConfigName
-	end
-end)
 
 local function bindKey(toggle)
 	toggle:AddKeybind({
@@ -2695,8 +2579,6 @@ local window = AddWindow({
 	name = string.format('살보결 <font color="rgb(139, 158, 252)">[v%s]</font>', Core.Version),
 	size = UDim2.new(0, 625, 0, 480),
 })
-Core.HubWindow = window.Window
-Core.HubScreenGui = window.ScreenGui
 
 local tabs = {
 	Combat = window:AddTab({ name = "combat" }),
@@ -2717,14 +2599,7 @@ local sections = {
 	render_right = tabs.Render:AddSection({ name = "aura", side = "Right", height = "fill" }),
 	skins_left = tabs.Skins:AddSection({ name = "skin changer", side = "Left", height = "fill" }),
 	settings_left = tabs.Settings:AddSection({ name = "config", side = "Left", height = "fill" }),
-	settings_right = tabs.Settings:AddSection({ name = "auto", side = "Right", height = "fill" }),
 }
-
-local ConfigSliders = {}
-local function trackSlider(key, slider)
-	ConfigSliders[key] = slider
-	return slider
-end
 
 local function getRayOrigin(character)
 	local head = character:FindFirstChild("Head")
@@ -2735,53 +2610,6 @@ local function getRayOrigin(character)
 	return hrp and hrp.Position
 end
 
-local function disconnectFeature(name)
-	local conn = Core.Connections[name]
-	if conn then
-		pcall(function()
-			conn:Disconnect()
-		end)
-		Core.Connections[name] = nil
-	end
-end
-
-local function getShootGun()
-	local remotes = Services.ReplicatedStorage:FindFirstChild("Remotes")
-	if not remotes then return nil end
-	return remotes:FindFirstChild("ShootGun")
-end
-
-local function fireShootGun(shoot_gun, hitPart)
-	if not shoot_gun or not hitPart then return end
-	local pos = hitPart.Position
-	getgenv()._SalboOwnShot = true
-	pcall(function()
-		shoot_gun:FireServer(pos, pos, hitPart, pos)
-	end)
-	getgenv()._SalboOwnShot = false
-end
-
-local function equipShootTool(character)
-	if not character then return nil end
-	local backpack = LocalPlayer:FindFirstChild("Backpack")
-	if backpack then
-		for _, gun in next, backpack:GetChildren() do
-			if gun:IsA("Tool") and gun:GetAttribute("Cooldown") ~= nil then
-				gun:SetAttribute("Cooldown", 0)
-				gun.Parent = character
-			end
-		end
-	end
-	for _, tool in next, character:GetChildren() do
-		if tool:IsA("Tool") and tool:GetAttribute("Cooldown") ~= nil then
-			tool:SetAttribute("Cooldown", 0)
-			return tool
-		end
-	end
-	return nil
-end
-
--- 작동되던 스크 원본.txt Kill All 그대로
 KillAll = sections.combat_left:AddToggle({
 	name = "Kill All",
 	default = Core.Features.KillAll.Enabled,
@@ -2876,39 +2704,66 @@ AutoShoot = sections.combat_left:AddToggle({
 	name = "Auto Shoot",
 	default = Core.Features.AutoShoot.Enabled,
 	callback = function(enabled)
-		Core.Features.AutoShoot.Enabled = enabled and true or false
-		disconnectFeature("AutoShoot")
+		Core.Features.AutoShoot.Enabled = enabled
 
-		if not enabled then
-			return
-		end
+		if enabled then
+			Core.Connections.AutoShoot = Services.RunService.Heartbeat:Connect(function()
+				if not Core.Features.AutoShoot.Enabled then return end
+				if not Core:CanShoot() then return end
 
-		Core.Connections.AutoShoot = Services.RunService.PreRender:Connect(function()
-			if not Core.Features.AutoShoot.Enabled then return end
+				local character = LocalPlayer.Character
+				if not character then return end
 
-			local character = LocalPlayer.Character
-			if not character then return end
+				local player_humanoid = character:FindFirstChildOfClass("Humanoid")
+				if not player_humanoid or player_humanoid.Health <= 0 then return end
 
-			local player_humanoid = character:FindFirstChildOfClass("Humanoid")
-			if not player_humanoid or player_humanoid.Health <= 0 then return end
+				local remotes = Services.ReplicatedStorage:FindFirstChild("Remotes")
+				if not remotes then return end
 
-			local shoot_gun = getShootGun()
-			if not shoot_gun then return end
+				local shoot_gun = remotes:FindFirstChild("ShootGun")
+				if not shoot_gun then return end
 
-			local equipped = equipShootTool(character)
-			local target_head = Core:GetAutoShootTarget()
-			if not target_head then return end
+				
+				local backpack = LocalPlayer.Backpack
+				if backpack then
+					for _, gun in next, backpack:GetChildren() do
+						if gun:IsA("Tool") and gun:GetAttribute("Cooldown") ~= nil then
+							gun:SetAttribute("Cooldown", 0)
+							gun.Parent = character
+						end
+					end
+				end
 
-			fireShootGun(shoot_gun, target_head)
-			fireShootGun(shoot_gun, target_head)
-			fireShootGun(shoot_gun, target_head)
+				local equipped = nil
+				for _, tool in next, character:GetChildren() do
+					if tool:IsA("Tool") and tool:GetAttribute("Cooldown") ~= nil then
+						tool:SetAttribute("Cooldown", 0)
+						equipped = tool
+					end
+				end
 
-			if equipped then
-				pcall(function()
-					equipped:Activate()
-				end)
+				local target_head = Core:GetAutoShootTarget()
+				if not target_head then return end
+
+				local hit_pos = target_head.Position
+
+				
+				for _ = 1, 3 do
+					shoot_gun:FireServer(hit_pos, hit_pos, target_head, hit_pos)
+				end
+
+				if equipped then
+					pcall(function()
+						equipped:Activate()
+					end)
+				end
+			end)
+		else
+			if Core.Connections.AutoShoot then
+				Core.Connections.AutoShoot:Disconnect()
+				Core.Connections.AutoShoot = nil
 			end
-		end)
+		end
 	end
 })
 bindKey(AutoShoot)
@@ -2963,7 +2818,7 @@ end)
 
 Core.Features.SilentAim.Hook = namecall
 
-trackSlider("SilentAimRange", sections.combat_left:AddSlider({
+sections.combat_left:AddSlider({
 	name = "Silent Aim Range",
 	default = Core.Features.SilentAim.Range,
 	min = 1,
@@ -2971,7 +2826,7 @@ trackSlider("SilentAimRange", sections.combat_left:AddSlider({
 	callback = function(value)
 		Core.Features.SilentAim.Range = value
 	end
-}))
+})
 
 SilentAimWallCheck = sections.combat_left:AddToggle({
 	name = "Silent Aim Wall Check",
@@ -3066,7 +2921,7 @@ SetCooldown = sections.combat_right:AddToggle({
 })
 bindKey(SetCooldown)
 
-trackSlider("SetCooldown", sections.combat_right:AddSlider({
+sections.combat_right:AddSlider({
 	name = "Cooldown",
 	default = Core.Features.SetCooldown.Cooldown,
 	min = 0,
@@ -3074,7 +2929,7 @@ trackSlider("SetCooldown", sections.combat_right:AddSlider({
 	callback = function(value) 
 		Core.Features.SetCooldown.Cooldown = value
 	end
-}))
+})
 
 SetThrowSpeed = sections.combat_right:AddToggle({
 	name = "Set Throw Speed",
@@ -3112,7 +2967,7 @@ SetThrowSpeed = sections.combat_right:AddToggle({
 })
 bindKey(SetThrowSpeed)
 
-trackSlider("SetThrowSpeed", sections.combat_right:AddSlider({
+sections.combat_right:AddSlider({
 	name = "Speed",
 	default = Core.Features.SetThrowSpeed.Speed,
 	min = 0,
@@ -3120,7 +2975,7 @@ trackSlider("SetThrowSpeed", sections.combat_right:AddSlider({
 	callback = function(value) 
 		Core.Features.SetThrowSpeed.Speed = value
 	end
-}))
+})
 
 HitboxExtender = sections.combat_right:AddToggle({
 	name = "Hitbox Extender",
@@ -3177,7 +3032,7 @@ HitboxExtender = sections.combat_right:AddToggle({
 })
 bindKey(HitboxExtender)
 
-trackSlider("HitboxSize", sections.combat_right:AddSlider({
+sections.combat_right:AddSlider({
 	name = "Size",
 	default = Core.Features.HitboxExtender.Size,
 	min = 1,
@@ -3185,9 +3040,9 @@ trackSlider("HitboxSize", sections.combat_right:AddSlider({
 	callback = function(value)
 		Core.Features.HitboxExtender.Size = value
 	end
-}))
+})
 
-trackSlider("HitboxTransparency", sections.combat_right:AddSlider({
+sections.combat_right:AddSlider({
 	name = "Transparency",
 	default = Core.Features.HitboxExtender.Transparency,
 	min = 0,
@@ -3195,7 +3050,7 @@ trackSlider("HitboxTransparency", sections.combat_right:AddSlider({
 	callback = function(value)
 		Core.Features.HitboxExtender.Transparency = value
 	end
-}))
+})
 
 CrashAll = sections.world_left:AddToggle({
 	name = "Crash All",
@@ -3355,7 +3210,7 @@ NoFog = sections.world_left:AddToggle({
 })
 bindKey(NoFog)
 
-trackSlider("FogDensity", sections.world_left:AddSlider({
+sections.world_left:AddSlider({
 	name = "fog density",
 	default = Core.Features.NoFog.Density,
 	min = 0,
@@ -3368,9 +3223,9 @@ trackSlider("FogDensity", sections.world_left:AddSlider({
 			NoFog_Apply()
 		end
 	end
-}))
+})
 
-trackSlider("FogHaze", sections.world_left:AddSlider({
+sections.world_left:AddSlider({
 	name = "fog haze",
 	default = Core.Features.NoFog.Haze,
 	min = 0,
@@ -3382,9 +3237,9 @@ trackSlider("FogHaze", sections.world_left:AddSlider({
 			NoFog_Apply()
 		end
 	end
-}))
+})
 
-trackSlider("FogGlare", sections.world_left:AddSlider({
+sections.world_left:AddSlider({
 	name = "fog glare",
 	default = Core.Features.NoFog.Glare,
 	min = 0,
@@ -3397,7 +3252,7 @@ trackSlider("FogGlare", sections.world_left:AddSlider({
 			NoFog_Apply()
 		end
 	end
-}))
+})
 
 Flight = sections.mobility_left:AddToggle({
 	name = "Flight",
@@ -3458,21 +3313,21 @@ Flight = sections.mobility_left:AddToggle({
 })
 bindKey(Flight)
 
-trackSlider("FlightH", sections.mobility_left:AddSlider({
+sections.mobility_left:AddSlider({
 	name = "Horizontal Speed",
 	default = Core.Features.Flight.HorizontalSpeed,
 	min = 0,
 	max = 500,
 	callback = function(v) Core.Features.Flight.HorizontalSpeed = v end
-}))
+})
 
-trackSlider("FlightV", sections.mobility_left:AddSlider({
+sections.mobility_left:AddSlider({
 	name = "Vertical Speed",
 	default = Core.Features.Flight.VerticalSpeed,
 	min = 0,
 	max = 500,
 	callback = function(v) Core.Features.Flight.VerticalSpeed = v end
-}))
+})
 
 Walkspeed = sections.mobility_left:AddToggle({
 	name = "Walkspeed",
@@ -3502,7 +3357,7 @@ Walkspeed = sections.mobility_left:AddToggle({
 })
 bindKey(Walkspeed)
 
-trackSlider("Walkspeed", sections.mobility_left:AddSlider({
+sections.mobility_left:AddSlider({
 	name = "Speed",
 	default = Core.Features.Walkspeed.Speed,
 	min = 0,
@@ -3510,7 +3365,7 @@ trackSlider("Walkspeed", sections.mobility_left:AddSlider({
 	callback = function(value)
 		Core.Features.Walkspeed.Speed = value
 	end
-}))
+})
 
 JumpPower = sections.mobility_left:AddToggle({
 	name = "Jump Power",
@@ -3548,7 +3403,7 @@ JumpPower = sections.mobility_left:AddToggle({
 })
 bindKey(JumpPower)
 
-trackSlider("JumpPower", sections.mobility_left:AddSlider({
+sections.mobility_left:AddSlider({
 	name = "Power",
 	default = Core.Features.JumpPower.Power,
 	min = 0,
@@ -3556,7 +3411,7 @@ trackSlider("JumpPower", sections.mobility_left:AddSlider({
 	callback = function(value)
 		Core.Features.JumpPower.Power = value
 	end
-}))
+})
 
 FOV = sections.mobility_left:AddToggle({
 	name = "Field of View",
@@ -3580,7 +3435,7 @@ FOV = sections.mobility_left:AddToggle({
 })
 bindKey(FOV)
 
-trackSlider("FOV", sections.mobility_left:AddSlider({
+sections.mobility_left:AddSlider({
 	name = "FOV",
 	default = Core.Features.FOV.Value,
 	min = 0,
@@ -3588,7 +3443,7 @@ trackSlider("FOV", sections.mobility_left:AddSlider({
 	callback = function(value)
 		Core.Features.FOV.Value = value
 	end
-}))
+})
 
 Gravity = sections.mobility_left:AddToggle({
 	name = "Gravity",
@@ -3612,7 +3467,7 @@ Gravity = sections.mobility_left:AddToggle({
 })
 bindKey(Gravity)
 
-trackSlider("Gravity", sections.mobility_left:AddSlider({
+sections.mobility_left:AddSlider({
 	name = "Gravity",
 	default = Core.Features.Gravity.Value,
 	min = 0,
@@ -3620,7 +3475,7 @@ trackSlider("Gravity", sections.mobility_left:AddSlider({
 	callback = function(v)
 		Core.Features.Gravity.Value = v
 	end
-}))
+})
 
 Phase = sections.mobility_right:AddToggle({
 	name = "Phase",
@@ -3696,7 +3551,7 @@ LongJump = sections.mobility_right:AddToggle({
 })
 bindKey(LongJump)
 
-trackSlider("LongJumpHeight", sections.mobility_right:AddSlider({
+sections.mobility_right:AddSlider({
 	name = "Height",
 	default = Core.Features.LongJump.Height,
 	min = 0,
@@ -3704,9 +3559,9 @@ trackSlider("LongJumpHeight", sections.mobility_right:AddSlider({
 	callback = function(value)
 		Core.Features.LongJump.Height = value
 	end
-}))
+})
 
-trackSlider("LongJumpBoost", sections.mobility_right:AddSlider({
+sections.mobility_right:AddSlider({
 	name = "Boost",
 	default = Core.Features.LongJump.Boost,
 	min = 0,
@@ -3714,7 +3569,7 @@ trackSlider("LongJumpBoost", sections.mobility_right:AddSlider({
 	callback = function(value)
 		Core.Features.LongJump.Boost = value
 	end
-}))
+})
 
 WallClimb = sections.mobility_right:AddToggle({
 	name = "Wall Climb",
@@ -3761,7 +3616,7 @@ WallClimb = sections.mobility_right:AddToggle({
 })
 bindKey(WallClimb)
 
-trackSlider("WallClimb", sections.mobility_right:AddSlider({
+sections.mobility_right:AddSlider({
 	name = "Speed",
 	default = Core.Features.WallClimb.Speed,
 	min = 0,
@@ -3769,7 +3624,7 @@ trackSlider("WallClimb", sections.mobility_right:AddSlider({
 	callback = function(value)
 		Core.Features.WallClimb.Speed = value
 	end
-}))
+})
 
 SpinBot = sections.mobility_right:AddToggle({
 	name = "Spin Bot",
@@ -3802,7 +3657,7 @@ SpinBot = sections.mobility_right:AddToggle({
 })
 bindKey(SpinBot)
 
-trackSlider("SpinBot", sections.mobility_right:AddSlider({
+sections.mobility_right:AddSlider({
 	name = "Speed",
 	default = Core.Features.SpinBot.Speed,
 	min = 0,
@@ -3810,7 +3665,7 @@ trackSlider("SpinBot", sections.mobility_right:AddSlider({
 	callback = function(v)
 		Core.Features.SpinBot.Speed = v
 	end
-}))
+})
 
 BunnyHop = sections.mobility_right:AddToggle({
 	name = "Bunny Hop",
@@ -4200,9 +4055,6 @@ bindKey(Aura)
 
 local function SkinChanger_SaveToFile()
 	if not writefile then return end
-	pcall(function()
-		Core:EnsureConfigFolder()
-	end)
 	local ok, encoded = pcall(function()
 		return Services.HttpService:JSONEncode(Core.Features.SkinChanger.Saved)
 	end)
@@ -4488,175 +4340,72 @@ sections.skins_left:AddButton({
 local function setToggle(toggle, enabled)
 	if not toggle or not toggle.UpdateState then return end
 	enabled = enabled and true or false
-	-- UI만 맞추고 콜백은 따로 돌림 (UpdateState 연속 호출 시 커넥션 유실 방지)
-	toggle:UpdateState(enabled, false)
+	if toggle.State then
+		toggle:UpdateState(false)
+	end
+	if enabled then
+		toggle:UpdateState(true)
+	end
 end
-
-local function setSlider(key, value)
-	local slider = ConfigSliders[key]
-	if not slider or value == nil then return end
-	value = tonumber(value)
-	if value == nil then return end
-	pcall(function()
-		slider:SetValue(value)
-	end)
-end
-
-local ConfigDropdown
 
 local function applyLoadedConfig(features)
-	features = features or Core.Features
+	features = features or {}
 
-	-- 플래그 먼저 스냅샷 (토글 콜백이 Enabled를 건드리지 않게)
-	local want = {
-		KillAll = Core.Features.KillAll.Enabled and true or false,
-		AutoShoot = Core.Features.AutoShoot.Enabled and true or false,
-		SilentAim = Core.Features.SilentAim.Enabled and true or false,
-		SilentAimWallCheck = Core.Features.SilentAim.WallCheck and true or false,
-		KnifeAura = Core.Features.KnifeAura.Enabled and true or false,
-		SetCooldown = Core.Features.SetCooldown.Enabled and true or false,
-		SetThrowSpeed = Core.Features.SetThrowSpeed.Enabled and true or false,
-		HitboxExtender = Core.Features.HitboxExtender.Enabled and true or false,
-		NoFog = Core.Features.NoFog.Enabled and true or false,
-		Flight = Core.Features.Flight.Enabled and true or false,
-		Walkspeed = Core.Features.Walkspeed.Enabled and true or false,
-		JumpPower = Core.Features.JumpPower.Enabled and true or false,
-		FOV = Core.Features.FOV.Enabled and true or false,
-		Gravity = Core.Features.Gravity.Enabled and true or false,
-		Phase = Core.Features.Phase.Enabled and true or false,
-		LongJump = Core.Features.LongJump.Enabled and true or false,
-		WallClimb = Core.Features.WallClimb.Enabled and true or false,
-		SpinBot = Core.Features.SpinBot.Enabled and true or false,
-		BunnyHop = Core.Features.BunnyHop.Enabled and true or false,
-		PlayerESP = Core.Features.PlayerESP.Enabled and true or false,
-		Aura = Core.Features.Aura.Enabled and true or false,
-		ESPTeamCheck = Core.Features.PlayerESP.TeamCheck and true or false,
-		ESPRemoveHidden = Core.Features.PlayerESP.RemoveHiddenCharacters and true or false,
-		ESPBox = Core.Features.PlayerESP.Box and true or false,
-		ESPTracer = Core.Features.PlayerESP.Tracer and true or false,
-		ESPSkeleton = Core.Features.PlayerESP.Skeleton and true or false,
-		ESPArrows = Core.Features.PlayerESP.Arrows and true or false,
-		ESPName = Core.Features.PlayerESP.Name and true or false,
-		ESPRainbow = Core.Features.PlayerESP.Rainbow and true or false,
-	}
+	
+	
 
-	-- sync sliders first
-	setSlider("SilentAimRange", Core.Features.SilentAim.Range)
-	setSlider("SetCooldown", Core.Features.SetCooldown.Cooldown)
-	setSlider("SetThrowSpeed", Core.Features.SetThrowSpeed.Speed)
-	setSlider("HitboxSize", Core.Features.HitboxExtender.Size)
-	setSlider("HitboxTransparency", Core.Features.HitboxExtender.Transparency)
-	setSlider("FogDensity", Core.Features.NoFog.Density)
-	setSlider("FogHaze", Core.Features.NoFog.Haze)
-	setSlider("FogGlare", Core.Features.NoFog.Glare)
-	setSlider("FlightH", Core.Features.Flight.HorizontalSpeed)
-	setSlider("FlightV", Core.Features.Flight.VerticalSpeed)
-	setSlider("Walkspeed", Core.Features.Walkspeed.Speed)
-	setSlider("JumpPower", Core.Features.JumpPower.Power)
-	setSlider("FOV", Core.Features.FOV.Value)
-	setSlider("Gravity", Core.Features.Gravity.Value)
-	setSlider("LongJumpHeight", Core.Features.LongJump.Height)
-	setSlider("LongJumpBoost", Core.Features.LongJump.Boost)
-	setSlider("WallClimb", Core.Features.WallClimb.Speed)
-	setSlider("SpinBot", Core.Features.SpinBot.Speed)
+	setToggle(SilentAimWallCheck, Core.Features.SilentAim.WallCheck)
+	setToggle(ESPTeamCheck, Core.Features.PlayerESP.TeamCheck)
+	setToggle(ESPRemoveHidden, Core.Features.PlayerESP.RemoveHiddenCharacters)
+	setToggle(ESPBox, Core.Features.PlayerESP.Box)
+	setToggle(ESPTracer, Core.Features.PlayerESP.Tracer)
+	setToggle(ESPSkeleton, Core.Features.PlayerESP.Skeleton)
+	setToggle(ESPArrows, Core.Features.PlayerESP.Arrows)
+	setToggle(ESPName, Core.Features.PlayerESP.Name)
+	setToggle(ESPRainbow, Core.Features.PlayerESP.Rainbow)
 
-	local function fireToggle(toggle, enabled)
-		if not toggle or not toggle.UpdateState then return end
-		enabled = enabled and true or false
-		-- 항상 off(콜백) → on(콜백) 로 커넥션 재생성
-		pcall(function()
-			toggle:UpdateState(false, true)
-		end)
-		if enabled then
-			pcall(function()
-				toggle:UpdateState(true, true)
-			end)
-		end
-	end
-
-	-- 서브 옵션
-	fireToggle(SilentAimWallCheck, want.SilentAimWallCheck)
-	fireToggle(ESPTeamCheck, want.ESPTeamCheck)
-	fireToggle(ESPRemoveHidden, want.ESPRemoveHidden)
-	fireToggle(ESPBox, want.ESPBox)
-	fireToggle(ESPTracer, want.ESPTracer)
-	fireToggle(ESPSkeleton, want.ESPSkeleton)
-	fireToggle(ESPArrows, want.ESPArrows)
-	fireToggle(ESPName, want.ESPName)
-	fireToggle(ESPRainbow, want.ESPRainbow)
-
-	-- 메인 (KillAll이 AutoShoot보다 먼저)
-	fireToggle(SilentAim, want.SilentAim)
-	fireToggle(KnifeAura, want.KnifeAura)
-	fireToggle(SetCooldown, want.SetCooldown)
-	fireToggle(SetThrowSpeed, want.SetThrowSpeed)
-	fireToggle(HitboxExtender, want.HitboxExtender)
-	fireToggle(NoFog, want.NoFog)
-	fireToggle(Flight, want.Flight)
-	fireToggle(Walkspeed, want.Walkspeed)
-	fireToggle(JumpPower, want.JumpPower)
-	fireToggle(FOV, want.FOV)
-	fireToggle(Gravity, want.Gravity)
-	fireToggle(Phase, want.Phase)
-	fireToggle(LongJump, want.LongJump)
-	fireToggle(WallClimb, want.WallClimb)
-	fireToggle(SpinBot, want.SpinBot)
-	fireToggle(BunnyHop, want.BunnyHop)
-	fireToggle(PlayerESP, want.PlayerESP)
-	fireToggle(Aura, want.Aura)
-
-	fireToggle(KillAll, want.KillAll)
-	-- KillAll 켜져 있으면 AutoShoot 루프는 양보하므로, 둘 다 켜도 KillAll 우선
-	fireToggle(AutoShoot, want.AutoShoot)
-
-	-- 플래그 최종 보장 + 연결 재확인
-	Core.Features.KillAll.Enabled = want.KillAll
-	Core.Features.AutoShoot.Enabled = want.AutoShoot
-	if want.KillAll and not Core.Connections.KillAll then
-		fireToggle(KillAll, true)
-	end
-	if want.AutoShoot and not Core.Connections.AutoShoot then
-		fireToggle(AutoShoot, true)
-	end
-
-	print(string.format(
-		"[살보결] Config applied KillAll=%s (conn=%s) AutoShoot=%s (conn=%s)",
-		tostring(Core.Features.KillAll.Enabled),
-		tostring(Core.Connections.KillAll ~= nil),
-		tostring(Core.Features.AutoShoot.Enabled),
-		tostring(Core.Connections.AutoShoot ~= nil)
-	))
+	setToggle(KillAll, Core.Features.KillAll.Enabled)
+	setToggle(AutoShoot, Core.Features.AutoShoot.Enabled)
+	setToggle(SilentAim, Core.Features.SilentAim.Enabled)
+	setToggle(KnifeAura, Core.Features.KnifeAura.Enabled)
+	setToggle(SetCooldown, Core.Features.SetCooldown.Enabled)
+	setToggle(SetThrowSpeed, Core.Features.SetThrowSpeed.Enabled)
+	setToggle(HitboxExtender, Core.Features.HitboxExtender.Enabled)
+	setToggle(CrashAll, Core.Features.CrashAll.Enabled)
+	setToggle(AntiCrash, Core.Features.AntiCrash.Enabled)
+	setToggle(NoFog, Core.Features.NoFog.Enabled)
+	setToggle(Flight, Core.Features.Flight.Enabled)
+	setToggle(Walkspeed, Core.Features.Walkspeed.Enabled)
+	setToggle(JumpPower, Core.Features.JumpPower.Enabled)
+	setToggle(FOV, Core.Features.FOV.Enabled)
+	setToggle(Gravity, Core.Features.Gravity.Enabled)
+	setToggle(Phase, Core.Features.Phase.Enabled)
+	setToggle(LongJump, Core.Features.LongJump.Enabled)
+	setToggle(WallClimb, Core.Features.WallClimb.Enabled)
+	setToggle(SpinBot, Core.Features.SpinBot.Enabled)
+	setToggle(BunnyHop, Core.Features.BunnyHop.Enabled)
+	setToggle(PlayerESP, Core.Features.PlayerESP.Enabled)
+	setToggle(Aura, Core.Features.Aura.Enabled)
 end
 
 local function getConfigName()
-	if ConfigDropdown and ConfigDropdown.active and ConfigDropdown.active[1] then
-		local selected = ConfigDropdown.active[1]
-		if selected and selected ~= "" and selected ~= "(none)" then
-			return selected
-		end
-	end
 	local name = Core.Config.NameInput
 	if not name or name == "" or name == "(none)" then
 		name = Core.Config.Selected
-	end
-	if (not name or name == "") and Core.Settings and Core.Settings.ConfigName then
-		name = Core.Settings.ConfigName
 	end
 	return name
 end
 
 sections.settings_left:AddTextbox({
 	name = "config name",
-	default = Core.Config.NameInput ~= "" and Core.Config.NameInput or (Core.Settings.ConfigName or "default"),
+	default = Core.Config.NameInput ~= "" and Core.Config.NameInput or "default",
 	callback = function(text)
 		Core.Config.NameInput = text
 		Core.Config.Selected = text
-		Core.Settings.ConfigName = text
-		Core:SaveSettings()
 	end,
 })
 
-ConfigDropdown = sections.settings_left:AddDropdown({
+local ConfigDropdown = sections.settings_left:AddDropdown({
 	name = "saved configs",
 	list = (function()
 		local list = Core:ListConfigs()
@@ -4670,27 +4419,23 @@ ConfigDropdown = sections.settings_left:AddDropdown({
 		if selected and selected ~= "" and selected ~= "(none)" then
 			Core.Config.Selected = selected
 			Core.Config.NameInput = selected
-			Core.Settings.ConfigName = selected
-			Core:SaveSettings()
 		end
 	end,
 })
 
 local function refreshConfigDropdown(new_name)
-	if not new_name or new_name == "" or new_name == "(none)" then return end
-	local function apply(dd)
-		if not dd or not dd.AddChoice then return end
-		dd:AddChoice(new_name)
-		dd.active = { new_name }
-		if dd.ActiveTextLabel then
-			dd.ActiveTextLabel.Text = new_name
+	if ConfigDropdown and ConfigDropdown.AddChoice and new_name then
+		local exists = false
+		if ConfigDropdown.active then
+			for _, n in ipairs(ConfigDropdown.active) do
+				if n == new_name then exists = true break end
+			end
 		end
-		if dd.UpdateSize then
-			dd:UpdateSize()
-		end
+		
+		pcall(function()
+			ConfigDropdown:AddChoice(new_name)
+		end)
 	end
-	pcall(apply, ConfigDropdown)
-	pcall(apply, AutoConfigDropdown)
 end
 
 sections.settings_left:AddButton({
@@ -4699,14 +4444,10 @@ sections.settings_left:AddButton({
 		local name = getConfigName()
 		local ok, err = Core:SaveConfig(name)
 		if ok then
-			Core.Settings.ConfigName = name
-			Core.Config.Selected = name
-			Core.Config.NameInput = name
-			Core:SaveSettings()
 			refreshConfigDropdown(name)
-			Notify("Config", "저장됨: " .. tostring(name))
+			print("[살보결] config saved:", name)
 		else
-			Notify("Config", "저장 실패: " .. tostring(err))
+			print("[살보결] config save failed:", err)
 		end
 	end,
 })
@@ -4715,14 +4456,12 @@ sections.settings_left:AddButton({
 	name = "load config",
 	callback = function()
 		local name = getConfigName()
-		local ok, err = Core:LoadConfig(name)
+		local ok, features = Core:LoadConfig(name)
 		if ok then
-			applyLoadedConfig()
-			Core.Settings.ConfigName = name
-			Core:SaveSettings()
-			Notify("Config", "불러옴: " .. tostring(name))
+			applyLoadedConfig(features)
+			print("[살보결] config loaded:", name)
 		else
-			Notify("Config", "불러오기 실패: " .. tostring(err))
+			print("[살보결] config load failed:", features)
 		end
 	end,
 })
@@ -4733,9 +4472,9 @@ sections.settings_left:AddButton({
 		local name = getConfigName()
 		local ok, err = Core:DeleteConfig(name)
 		if ok then
-			Notify("Config", "삭제됨: " .. tostring(name))
+			print("[살보결] config deleted:", name)
 		else
-			Notify("Config", "삭제 실패: " .. tostring(err))
+			print("[살보결] config delete failed:", err)
 		end
 	end,
 })
@@ -4745,9 +4484,9 @@ sections.settings_left:AddButton({
 	callback = function()
 		local list = Core:ListConfigs()
 		if #list == 0 then
-			Notify("Config", "저장된 컨픽 없음")
+			print("[살보결] no configs saved")
 		else
-			Notify("Config", table.concat(list, ", "))
+			print("[살보결] configs:", table.concat(list, ", "))
 		end
 	end,
 })
@@ -4757,846 +4496,9 @@ sections.settings_left:AddButton({
 	callback = function()
 		if setclipboard then
 			setclipboard("https://discord.gg/404")
-			Notify("Discord", "복사됨")
 		end
 	end,
 })
-
---[[ AUTO QUEUE / REEXEC / AUTOLOAD ]]--
--- Flow: 플레이 → 1v1 → 매칭 대기 → (맵 이동 시 reexec+config) → 로비 복귀 후 반복
-
-local DUEL_PLACE_IDS = {
-	[124848751642883] = "1v1",
-	[92876937625630] = "2v2",
-	[101617670515690] = "3v3",
-	[74084441161738] = "pro",
-}
-
-local LOBBY_PLACE_IDS = {
-	[15385224902] = true,
-	[12355337193] = true,
-}
-
-local function isLobbyPlace()
-	return LOBBY_PLACE_IDS[game.PlaceId] == true
-end
-
-local function isDuelPlace()
-	return DUEL_PLACE_IDS[game.PlaceId] ~= nil
-end
-
-local function isInMatch()
-	-- 별도 듀얼 맵
-	if isDuelPlace() then
-		return true
-	end
-
-	-- Match 속성 (이 게임이 로비와 같은 place에서 매치함)
-	local m = LocalPlayer:GetAttribute("Match")
-	if type(m) == "string" and #m > 0 then return true end
-	if type(m) == "number" and m ~= 0 then return true end
-	if m == true then return true end
-
-	local pg = LocalPlayer:FindFirstChild("PlayerGui")
-	if not pg then
-		return not isLobbyPlace()
-	end
-
-	-- RoundCountdown 켜짐 = 라운드/매치 중
-	local rc = pg:FindFirstChild("RoundCountdown")
-	if rc and rc:IsA("LayerCollector") and rc.Enabled == true then
-		return true
-	end
-
-	-- 매치 HUD
-	for _, child in ipairs(pg:GetChildren()) do
-		if child:IsA("LayerCollector") and child.Enabled then
-			local n = string.lower(tostring(child.Name))
-			if string.find(n, "queue", 1, true)
-				or string.find(n, "lobby", 1, true)
-				or string.find(n, "loading", 1, true)
-				or string.find(n, "emote", 1, true)
-			then
-				-- skip
-			elseif string.find(n, "match", 1, true)
-				or string.find(n, "round", 1, true)
-				or string.find(n, "duel", 1, true)
-				or string.find(n, "score", 1, true)
-				or string.find(n, "ingame", 1, true)
-				or string.find(n, "gamehud", 1, true)
-				or n == "hud"
-			then
-				return true
-			end
-		end
-	end
-
-	-- 로비 place가 아니면 매치
-	if not isLobbyPlace() then
-		return true
-	end
-
-	return false
-end
-
-local function canRunAutoQueue()
-	return not isInMatch()
-end
-
-local function normalizeGuiText(s)
-	s = tostring(s or ""):lower()
-	s = s:gsub("<.->", "")
-	s = s:gsub("[%s\n\r\t]+", " ")
-	s = s:gsub("^%s+", ""):gsub("%s+$", "")
-	return s
-end
-
-local AutoQueueState = {
-	Running = false,
-	Thread = nil,
-	Lock = false,
-	Phase = "play",
-	LastAttempt = 0,
-}
-
-local setupAutoReexec -- forward decl
-
-local function getHubWindow()
-	if Core.HubWindow and Core.HubWindow.Parent and Core.HubWindow:IsA("GuiObject") then
-		return Core.HubWindow, Core.HubScreenGui
-	end
-	local parents = {}
-	pcall(function() table.insert(parents, game:GetService("CoreGui")) end)
-	pcall(function() table.insert(parents, LocalPlayer:FindFirstChild("PlayerGui")) end)
-	for _, parent in ipairs(parents) do
-		if parent then
-			for _, gui in ipairs(parent:GetChildren()) do
-				if gui:IsA("ScreenGui") then
-					for _, desc in ipairs(gui:GetDescendants()) do
-						if desc.Name == "Window" and desc:IsA("GuiObject") and desc:FindFirstChild("mb") then
-							Core.HubWindow = desc
-							Core.HubScreenGui = gui
-							return desc, gui
-						end
-					end
-				end
-			end
-		end
-	end
-	return nil, nil
-end
-
-local function fireConnections(obj)
-	if not obj then return false end
-	local fired = false
-	pcall(function()
-		if typeof(getconnections) ~= "function" then return end
-		-- Activated / Click only — Down까지 쏘면 가입 요청이 중복됨
-		for _, sigName in ipairs({ "Activated", "MouseButton1Click" }) do
-			local signal = obj[sigName]
-			if signal then
-				local ok, conns = pcall(getconnections, signal)
-				if ok and type(conns) == "table" then
-					for _, c in ipairs(conns) do
-						pcall(function()
-							if c.Fire then c:Fire()
-							elseif c.Function then c.Function()
-							end
-						end)
-						fired = true
-					end
-				end
-			end
-			if fired then return end
-		end
-	end)
-	if not fired then
-		pcall(function()
-			if typeof(firesignal) == "function" and obj:IsA("GuiButton") then
-				pcall(firesignal, obj.Activated)
-				fired = true
-			end
-		end)
-	end
-	return fired
-end
-
-local function clickGui(inst)
-	if not inst then return false end
-
-	local target = inst
-	if not (target:IsA("GuiButton") or target:IsA("ImageButton")) then
-		target = inst:FindFirstAncestorWhichIsA("GuiButton")
-	end
-	if not target or not target:IsA("GuiObject") then return false end
-
-	AutoQueueState.Lock = true
-
-	local win = getHubWindow()
-	local oldPos, oldModal
-	local modalBtn
-	if win and win:IsA("GuiObject") then
-		oldPos = win.Position
-		pcall(function()
-			win.Position = UDim2.new(5, 0, 5, 0)
-		end)
-		modalBtn = win:FindFirstChild("mb")
-		if modalBtn and modalBtn:IsA("GuiButton") then
-			oldModal = modalBtn.Modal
-			modalBtn.Modal = false
-		end
-	end
-
-	task.wait(0.1)
-
-	-- connections + VIM 둘 다 (한쪽만으론 안 먹는 경우 있음)
-	fireConnections(target)
-	pcall(function()
-		local vim = game:GetService("VirtualInputManager")
-		local inset = game:GetService("GuiService"):GetGuiInset()
-		local pos = target.AbsolutePosition
-		local size = target.AbsoluteSize
-		if size.X <= 0 or size.Y <= 0 then return end
-		local x = pos.X + size.X * 0.5
-		local y = pos.Y + size.Y * 0.5 + inset.Y
-		vim:SendMouseMoveEvent(x, y, game)
-		task.wait(0.03)
-		vim:SendMouseButtonEvent(x, y, 0, true, game, 1)
-		task.wait(0.05)
-		vim:SendMouseButtonEvent(x, y, 0, false, game, 1)
-	end)
-
-	if win and oldPos then
-		pcall(function()
-			win.Position = oldPos
-		end)
-	end
-	if modalBtn and oldModal ~= nil then
-		modalBtn.Modal = oldModal
-	end
-
-	task.delay(0.35, function()
-		AutoQueueState.Lock = false
-	end)
-
-	return true
-end
-
-local function isVisibleGui(d)
-	if not d then return false end
-	if d:IsA("LayerCollector") then
-		return d.Enabled == true
-	end
-	if not d:IsA("GuiObject") then
-		return false
-	end
-	return d.Visible == true and d.AbsoluteSize.X > 0 and d.AbsoluteSize.Y > 0
-end
-
-local function isIgnoredQueuePath(d)
-	local p = d
-	for _ = 1, 14 do
-		if not p then break end
-		local n = string.lower(tostring(p.Name))
-		if n == "queuehud"
-			or n == "searchingframe"
-			or n == "emotes"
-			or n == "chat"
-			or n == "bubblechat"
-			or string.find(n, "search", 1, true)
-		then
-			return true
-		end
-		p = p.Parent
-	end
-	return false
-end
-
-local function pathHas(d, needle)
-	needle = string.lower(tostring(needle or ""))
-	if needle == "" then return true end
-	local ok, full = pcall(function() return string.lower(d:GetFullName()) end)
-	if not ok or not full then return false end
-	return string.find(full, needle, 1, true) ~= nil
-end
-
-local function collectButtonText(btn)
-	local parts = {}
-	if btn:IsA("TextButton") or btn:IsA("TextLabel") then
-		table.insert(parts, tostring(btn.Text or ""))
-	end
-	for _, ch in ipairs(btn:GetDescendants()) do
-		if ch:IsA("TextLabel") or ch:IsA("TextButton") then
-			table.insert(parts, tostring(ch.Text or ""))
-		end
-	end
-	return normalizeGuiText(table.concat(parts, " "))
-end
-
-local function isQueueSearching()
-	local pg = LocalPlayer:FindFirstChild("PlayerGui")
-	if not pg then return false end
-
-	-- SearchingFrame Visible 만으로는 오탐 많음 → 실제 "찾고 있습니다" 문구만 인정
-	local function textLooksSearching(t)
-		t = normalizeGuiText(t)
-		if t == "" then return false end
-		if string.find(t, "찾고 있습니다", 1, true) then return true end
-		if string.find(t, "플레이어들 찾고", 1, true) then return true end
-		if string.find(t, "플레이어를 찾는", 1, true) then return true end
-		if string.find(t, "searching for", 1, true) then return true end
-		if string.find(t, "finding players", 1, true) then return true end
-		return false
-	end
-
-	local qhud = pg:FindFirstChild("QueueHUD")
-	if qhud and (not qhud:IsA("LayerCollector") or qhud.Enabled) then
-		local searching = qhud:FindFirstChild("SearchingFrame", true)
-		if searching and searching:IsA("GuiObject") and searching.Visible == true
-			and searching.AbsoluteSize.X > 8 and searching.AbsoluteSize.Y > 8
-		then
-			for _, d in ipairs(searching:GetDescendants()) do
-				if (d:IsA("TextLabel") or d:IsA("TextButton")) and d.Visible then
-					if textLooksSearching(d.Text) then
-						return true
-					end
-				end
-			end
-		end
-	end
-
-	return false
-end
-
-local function hasJoinErrorToast()
-	if isQueueSearching() then return false end
-	local pg = LocalPlayer:FindFirstChild("PlayerGui")
-	if not pg then return false end
-	for _, d in ipairs(pg:GetDescendants()) do
-		if d:IsA("TextLabel") or d:IsA("TextButton") then
-			local okVis, vis = pcall(isVisibleGui, d)
-			if okVis and vis then
-				local t = normalizeGuiText(d.Text)
-				if string.find(t, "가입 오류", 1, true) or string.find(t, "join error", 1, true) then
-					local full = ""
-					pcall(function() full = string.lower(d:GetFullName()) end)
-					if not string.find(full, "salbonotify", 1, true) then
-						return true
-					end
-				end
-			end
-		end
-	end
-	return false
-end
-
-local function scanPlayerGui(callback)
-	local pg = LocalPlayer:FindFirstChild("PlayerGui")
-	if not pg then return end
-	for _, d in ipairs(pg:GetDescendants()) do
-		callback(d)
-	end
-end
-
-local function isModeMenuOpen()
-	local has1, has2, has3 = false, false, false
-	scanPlayerGui(function(d)
-		if isIgnoredQueuePath(d) then return end
-		if not pathHas(d, "queuegamemodes") and not pathHas(d, "duelmodes") then
-			-- still allow if all three modes visible elsewhere
-		end
-		if (d:IsA("TextLabel") or d:IsA("TextButton")) and isVisibleGui(d) then
-			local t = normalizeGuiText(d.Text)
-			if t == "1v1" then has1 = true end
-			if t == "2v2" then has2 = true end
-			if t == "3v3" then has3 = true end
-		end
-	end)
-	return has1 and has2 and has3
-end
-
-local function findTextButtonExact(exactText, opts)
-	opts = opts or {}
-	local want = normalizeGuiText(exactText)
-	local best, bestArea = nil, opts.preferSmall and math.huge or -1
-	local labelRef = nil
-	scanPlayerGui(function(d)
-		if not isVisibleGui(d) then return end
-		if isIgnoredQueuePath(d) then return end
-		if opts.requirePath and not pathHas(d, opts.requirePath) then return end
-
-		local textVal = ""
-		if d:IsA("TextLabel") or d:IsA("TextButton") then
-			textVal = normalizeGuiText(d.Text)
-		elseif d:IsA("GuiButton") or d:IsA("ImageButton") then
-			textVal = collectButtonText(d)
-			if textVal == "" then
-				textVal = normalizeGuiText(d.Name)
-			end
-		else
-			return
-		end
-
-		local matched = (textVal == want)
-		if opts.contains and not matched then
-			matched = string.find(textVal, want, 1, true) ~= nil
-		end
-		if not matched then return end
-
-		local target = (d:IsA("GuiButton") or d:IsA("ImageButton")) and d or d:FindFirstAncestorWhichIsA("GuiButton")
-		if not target or not (target:IsA("GuiButton") or target:IsA("ImageButton")) then return end
-		if not isVisibleGui(target) then return end
-		if isIgnoredQueuePath(target) then return end
-		if opts.requirePath and not pathHas(target, opts.requirePath) then return end
-
-		if opts.skipBeginner then
-			local blob = collectButtonText(target)
-			if string.find(blob, "beginner", 1, true) then return end
-			-- exact mode label must be exactly want (not "beginner 1v1")
-			if want == "1v1" and blob ~= "1v1" and not string.find(blob, "^1v1$") then
-				-- allow if blob has 1v1 as standalone word without beginner
-				if string.find(blob, "beginner", 1, true) then return end
-				local only = blob:gsub("[%s%-_]+", "")
-				if only ~= "1v1" and textVal ~= "1v1" then return end
-			end
-		end
-
-		local area = target.AbsoluteSize.X * target.AbsoluteSize.Y
-		if area <= 0 then return end
-		if opts.preferSmall then
-			if area < bestArea then
-				bestArea = area
-				best = target
-				labelRef = d
-			end
-		else
-			local score = area + target.AbsolutePosition.Y * 5
-			if score > bestArea then
-				bestArea = score
-				best = target
-				labelRef = d
-			end
-		end
-	end)
-	return best, labelRef
-end
-
-local function waitForMatchOrQueue(timeoutSec)
-	local startT = tick()
-	timeoutSec = timeoutSec or 180
-	local lastSawSearch = isQueueSearching() and tick() or 0
-	local joinErrChecked = false
-
-	AutoQueueState.Phase = "wait"
-
-	while AutoQueueState.Running and Core.Settings.AutoQueue and (tick() - startT) < timeoutSec do
-		if isInMatch() or not canRunAutoQueue() then
-			print("[살보결] AutoQueue stop wait — in match")
-			return true
-		end
-
-		if isQueueSearching() then
-			lastSawSearch = tick()
-			task.wait(2)
-		else
-			local elapsed = tick() - startT
-			local sinceSearch = (lastSawSearch > 0) and (tick() - lastSawSearch) or elapsed
-
-			if lastSawSearch > 0 and sinceSearch < 12 then
-				task.wait(1)
-			elseif lastSawSearch == 0 and elapsed < 8 then
-				if not joinErrChecked and elapsed >= 1.0 and elapsed <= 5 and hasJoinErrorToast() then
-					joinErrChecked = true
-					print("[살보결] AutoQueue join rejected")
-					task.wait(3)
-					return false
-				end
-				task.wait(0.4)
-			else
-				print("[살보결] AutoQueue wait end (not searching)")
-				return false
-			end
-		end
-	end
-
-	return isInMatch()
-end
-
-local function autoQueueLoop()
-	Notify("Auto Queue", "로비에서만 큐")
-	print("[살보결] AutoQueue start place=", game.PlaceId, "inMatch=", isInMatch())
-
-	while AutoQueueState.Running and Core.Settings.AutoQueue do
-		local ok, err = pcall(function()
-			-- 게임 중이면 큐 완전 정지 (같은 place 매치 포함)
-			if isInMatch() or not canRunAutoQueue() then
-				AutoQueueState.Phase = "ingame"
-				task.wait(3)
-				return
-			end
-
-			if isQueueSearching() then
-				print("[살보결] AutoQueue searching — wait")
-				waitForMatchOrQueue(90)
-				return
-			end
-
-			local now = tick()
-			if (AutoQueueState.LastAttempt or 0) > 0 and (now - AutoQueueState.LastAttempt) < 2 then
-				task.wait(0.25)
-				return
-			end
-
-			if not isModeMenuOpen() then
-				local playBtn = findTextButtonExact("플레이", { preferSmall = false, contains = true })
-				if not playBtn then
-					playBtn = findTextButtonExact("play", { preferSmall = false, contains = true })
-				end
-				if playBtn then
-					AutoQueueState.LastAttempt = tick()
-					Notify("Auto Queue", "1) 플레이")
-					print("[살보결] click play", playBtn:GetFullName())
-					clickGui(playBtn)
-					for _ = 1, 20 do
-						if not AutoQueueState.Running then return end
-						if isInMatch() then return end
-						if isModeMenuOpen() or isQueueSearching() then break end
-						task.wait(0.2)
-					end
-				else
-					print("[살보결] play not found")
-					task.wait(2)
-				end
-				return
-			end
-
-			local btn1 = findTextButtonExact("1v1", {
-				preferSmall = true,
-				skipBeginner = true,
-				requirePath = "queuegamemodes",
-			})
-			if not btn1 then
-				btn1 = findTextButtonExact("1v1", { preferSmall = true, skipBeginner = true })
-			end
-			if btn1 then
-				AutoQueueState.LastAttempt = tick()
-				Notify("Auto Queue", "2) 1v1")
-				print("[살보결] click 1v1", btn1:GetFullName())
-				clickGui(btn1)
-				waitForMatchOrQueue(90)
-				return
-			end
-
-			task.wait(1.2)
-		end)
-
-		if not ok then
-			warn("[살보결] AutoQueue:", err)
-			AutoQueueState.Lock = false
-			task.wait(2)
-		end
-	end
-	AutoQueueState.Running = false
-	AutoQueueState.Thread = nil
-	AutoQueueState.Lock = false
-	print("[살보결] AutoQueue end")
-end
-
-local function setAutoQueueEnabled(enabled)
-	enabled = enabled and true or false
-
-	if enabled then
-		if AutoQueueState.Running then return end
-	elseif not AutoQueueState.Running and not Core.Settings.AutoQueue then
-		return
-	end
-
-	Core.Settings.AutoQueue = enabled
-	Core:SaveSettings()
-
-	AutoQueueState.Running = false
-	task.wait(0.15)
-
-	if enabled then
-		Core.Settings.AutoReexec = true
-		Core.Settings.AutoLoadConfig = true
-		Core:SaveSettings()
-		pcall(function()
-			if setupAutoReexec then setupAutoReexec() end
-		end)
-
-		AutoQueueState.Running = true
-		AutoQueueState.Phase = "play"
-		Notify("Auto Queue", "켜짐 (플레이→1v1→대기→반복)")
-		AutoQueueState.Thread = task.spawn(autoQueueLoop)
-	else
-		Notify("Auto Queue", "꺼짐")
-	end
-end
-
-local function resolveScriptPath()
-	local candidates = {
-		Core.Settings.ScriptPath,
-		"살보결 hub.lua",
-		"MVSD/살보결 hub.lua",
-		"살보결/살보결 hub.lua",
-		"hub.lua",
-		"MVSD/hub.lua",
-	}
-	if typeof(isfile) ~= "function" then return nil end
-	for _, path in ipairs(candidates) do
-		if path and path ~= "" and isfile(path) then
-			return path
-		end
-	end
-	return nil
-end
-
-local function getQueueOnTeleport()
-	if typeof(queue_on_teleport) == "function" then return queue_on_teleport end
-	if syn and typeof(syn.queue_on_teleport) == "function" then return syn.queue_on_teleport end
-	if fluxus and typeof(fluxus.queue_on_teleport) == "function" then return fluxus.queue_on_teleport end
-	if typeof(queueonteleport) == "function" then return queueonteleport end
-	return nil
-end
-
-local function saveHubFromClipboard()
-	if typeof(writefile) ~= "function" then
-		return false, "writefile 없음"
-	end
-	local clip = nil
-	pcall(function()
-		if typeof(getclipboard) == "function" then
-			clip = getclipboard()
-		elseif typeof(toclipboard) == "function" then
-			-- no read
-		end
-	end)
-	if type(clip) ~= "string" or #clip < 800 then
-		return false, "클립보드에 스크립트 전체를 복사하세요"
-	end
-	local looksLikeHub = string.find(clip, "AutoQueue", 1, true)
-		or string.find(clip, "살보결", 1, true)
-		or string.find(clip, "AddWindow", 1, true)
-	if not looksLikeHub then
-		return false, "클립보드 내용이 hub 스크립트가 아닌 것 같습니다"
-	end
-	local path = tostring(Core.Settings.ScriptPath or "살보결 hub.lua")
-	if path == "" then path = "살보결 hub.lua" end
-	local ok, err = pcall(writefile, path, clip)
-	if not ok then return false, err end
-	-- also mirror under MVSD
-	pcall(function()
-		Core:EnsureConfigFolder()
-		writefile("MVSD/살보결 hub.lua", clip)
-	end)
-	return true, path
-end
-
-setupAutoReexec = function()
-	if not Core.Settings.AutoReexec then return false, "disabled" end
-	local queueFn = getQueueOnTeleport()
-	if not queueFn then return false, "executor missing queue_on_teleport" end
-
-	local path = resolveScriptPath()
-	Core.Settings.ScriptUrl = "https://raw.githubusercontent.com/deltosh/test/refs/heads/main/d.lua"
-	local url = tostring(Core.Settings.ScriptUrl or ""):gsub("^%s+", ""):gsub("%s+$", "")
-	local payload
-	local used
-
-	-- URL 우선 (workspace 파일 불필요)
-	if url ~= "" and (string.find(url, "http://", 1, true) == 1 or string.find(url, "https://", 1, true) == 1) then
-		payload = string.format([[
-task.spawn(function()
-	local url = %q
-	local ok, err = pcall(function()
-		loadstring(game:HttpGet(url))()
-	end)
-	if not ok then
-		warn("[살보결] auto reexec HttpGet failed:", err)
-	end
-end)
-]], url)
-		used = url
-	elseif path then
-		payload = string.format([[
-task.spawn(function()
-	local path = %q
-	local ok, err = pcall(function()
-		loadstring(readfile(path))()
-	end)
-	if not ok then
-		warn("[살보결] auto reexec failed:", err)
-	end
-end)
-]], path)
-		used = path
-	elseif getgenv()._SalboHubSource and type(getgenv()._SalboHubSource) == "string" and #getgenv()._SalboHubSource > 100 then
-		payload = getgenv()._SalboHubSource
-		used = "embedded"
-	else
-		return false, "reexec url/파일 없음"
-	end
-
-	local ok, err = pcall(queueFn, payload)
-	if not ok then return false, err end
-	return true, used
-end
-
--- Load persisted auto settings early
-pcall(function()
-	Core:LoadSettings()
-end)
-
-if Core.Settings.ConfigName and Core.Settings.ConfigName ~= "" then
-	Core.Config.NameInput = Core.Settings.ConfigName
-	Core.Config.Selected = Core.Settings.ConfigName
-end
-
-AutoQueueToggle = sections.settings_right:AddToggle({
-	name = "Auto Queue 1v1",
-	default = Core.Settings.AutoQueue,
-	callback = function(enabled)
-		-- 매칭 대기 중 실수 클릭/오클릭으로 꺼지는 것 방지
-		if AutoQueueState and AutoQueueState.Lock then
-			if not enabled and AutoQueueToggle and AutoQueueToggle.UpdateState then
-				task.defer(function()
-					AutoQueueToggle:UpdateState(true, false)
-				end)
-			end
-			return
-		end
-		setAutoQueueEnabled(enabled)
-	end,
-})
-
-sections.settings_right:AddToggle({
-	name = "Auto Reexec (맵 이동)",
-	default = Core.Settings.AutoReexec,
-	callback = function(enabled)
-		Core.Settings.AutoReexec = enabled and true or false
-		Core:SaveSettings()
-		if enabled then
-			local ok, info = setupAutoReexec()
-			if ok then
-				Notify("Auto Reexec", "등록됨: " .. tostring(info))
-			else
-				Notify("Auto Reexec", "실패: " .. tostring(info))
-			end
-		else
-			Notify("Auto Reexec", "꺼짐 (다음 이동부터)")
-		end
-	end,
-})
-
-sections.settings_right:AddToggle({
-	name = "Auto Load Config",
-	default = Core.Settings.AutoLoadConfig,
-	callback = function(enabled)
-		Core.Settings.AutoLoadConfig = enabled and true or false
-		Core:SaveSettings()
-	end,
-})
-
-local function getAutoConfigList()
-	local list = {}
-	for _, name in ipairs(Core:ListConfigs()) do
-		local lower = string.lower(tostring(name))
-		-- hide script filenames from config picker
-		if not string.find(lower, "%.lua", 1, true)
-			and lower ~= "살보결 hub.lua"
-			and name ~= "(none)" then
-			table.insert(list, name)
-		end
-	end
-	if #list == 0 then
-		return { "(none)" }
-	end
-	return list
-end
-
-local function defaultAutoConfigIndex(list)
-	local want = tostring(Core.Settings.ConfigName or "")
-	for i, name in ipairs(list) do
-		if name == want then
-			return i
-		end
-	end
-	return 1
-end
-
-local autoConfigList = getAutoConfigList()
-AutoConfigDropdown = sections.settings_right:AddDropdown({
-	name = "auto load config",
-	list = autoConfigList,
-	default = defaultAutoConfigIndex(autoConfigList),
-	min = 0,
-	max = 1,
-	callback = function(selected)
-		if not selected or selected == "" or selected == "(none)" then return end
-		local name = tostring(selected):match("^([^,]+)") or selected
-		name = name:gsub("^%s+", ""):gsub("%s+$", "")
-		if name == "" or name == "(none)" then return end
-		if string.find(string.lower(name), "%.lua", 1, true) then return end
-		Core.Settings.ConfigName = name
-		Core.Config.NameInput = name
-		Core.Config.Selected = name
-		Core:SaveSettings()
-		Notify("Config", "자동 로드 대상: " .. name)
-	end,
-})
-
-sections.settings_right:AddButton({
-	name = "register reexec now",
-	callback = function()
-		Core.Settings.AutoReexec = true
-		if not Core.Settings.ScriptPath or Core.Settings.ScriptPath == "" then
-			Core.Settings.ScriptPath = "살보결 hub.lua"
-		end
-		Core:SaveSettings()
-		local ok, info = setupAutoReexec()
-		if ok then
-			Notify("Auto Reexec", "등록됨: " .. tostring(info))
-		else
-			Notify("Auto Reexec", "실패: " .. tostring(info))
-		end
-	end,
-})
-
--- Startup: reexec + autoload + autoqueue
-task.defer(function()
-	if Core.Settings.AutoReexec then
-		local ok, info = setupAutoReexec()
-		if ok then
-			print("[살보결] Auto Reexec queued:", info)
-		else
-			print("[살보결] Auto Reexec skip:", info)
-		end
-	end
-
-	if Core.Settings.AutoLoadConfig then
-		local name = Core.Settings.ConfigName or getConfigName()
-		if name and name ~= "" and name ~= "(none)" then
-			task.wait(0.75)
-			local ok, err = Core:LoadConfig(name)
-			if ok then
-				applyLoadedConfig()
-				task.wait(0.35)
-				applyLoadedConfig()
-				Notify("Config", "자동 로드: " .. tostring(name))
-				print("[살보결] Auto Load Config ok:", name,
-					"KillAllConn=", Core.Connections.KillAll ~= nil,
-					"AutoShootConn=", Core.Connections.AutoShoot ~= nil)
-			else
-				print("[살보결] Auto Load Config failed:", err)
-			end
-		end
-	end
-
-	if Core.Settings.AutoQueue then
-		setAutoQueueEnabled(true)
-	end
-end)
 
 local function cleanup()
 	if getgenv()._SalboCleaning then return end
