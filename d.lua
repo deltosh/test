@@ -2207,23 +2207,28 @@ function Core:GetCharacter(player)
 end
 
 function Core:CanShoot()
-	local player_gui = LocalPlayer.PlayerGui
+	-- 카운트다운이 "실제로 보이는 큰 숫자"일 때만 막음
+	local player_gui = LocalPlayer:FindFirstChild("PlayerGui")
 	if not player_gui then return true end
 
 	local round_countdown = player_gui:FindFirstChild("RoundCountdown")
-	-- countdown UI off = round already started → shooting allowed
 	if not round_countdown or round_countdown.Enabled == false then
 		return true
 	end
 
 	local countdown_frame = round_countdown:FindFirstChild("CountdownFrame")
-	if not countdown_frame then return true end
+	if not countdown_frame or (countdown_frame:IsA("GuiObject") and not countdown_frame.Visible) then
+		return true
+	end
 
 	local frame = countdown_frame:FindFirstChild("Frame")
-	if not frame then return true end
+	if not frame or (frame:IsA("GuiObject") and not frame.Visible) then
+		return true
+	end
 
 	local number = frame:FindFirstChild("Number")
 	if not number or not number.Text then return true end
+	if number:IsA("GuiObject") and not number.Visible then return true end
 
 	local value = tonumber(number.Text)
 	if not value then return true end
@@ -2776,10 +2781,27 @@ local function getShootGun()
 	return remotes:FindFirstChild("ShootGun")
 end
 
+local function fireShootGun(shoot_gun, hitPart)
+	if not shoot_gun or not hitPart then return end
+	local pos = hitPart.Position
+	getgenv()._SalboOwnShot = true
+	pcall(function()
+		shoot_gun:FireServer(pos, pos, hitPart, pos)
+	end)
+	getgenv()._SalboOwnShot = false
+end
+
 local function isKillAllTarget(target)
 	if target == LocalPlayer then return false end
-	if target:GetAttribute("Match") ~= LocalPlayer:GetAttribute("Match") then return false end
-	if target.Team == LocalPlayer.Team then return false end
+	local myMatch = LocalPlayer:GetAttribute("Match")
+	local theirMatch = target:GetAttribute("Match")
+	-- 둘 다 값이 있을 때만 다른 매치 제외 (한쪽 nil이면 스킵하지 않음)
+	if myMatch ~= nil and theirMatch ~= nil and myMatch ~= theirMatch then
+		return false
+	end
+	if LocalPlayer.Team and target.Team and target.Team == LocalPlayer.Team then
+		return false
+	end
 	return true
 end
 
@@ -2828,9 +2850,8 @@ KillAll = sections.combat_left:AddToggle({
 						local hit = target_character:FindFirstChild("Head")
 							or target_character:FindFirstChild("HumanoidRootPart")
 						if th and th.Health > 0 and hit then
-							local pos = hit.Position
-							shoot_gun:FireServer(pos, pos, hit, pos)
-							shoot_gun:FireServer(pos, pos, hit, pos)
+							fireShootGun(shoot_gun, hit)
+							fireShootGun(shoot_gun, hit)
 							fired = true
 						end
 					end
@@ -2883,10 +2904,9 @@ AutoShoot = sections.combat_left:AddToggle({
 			if not target_head then return end
 
 			lastShot = now
-			local hit_pos = target_head.Position
-			shoot_gun:FireServer(hit_pos, hit_pos, target_head, hit_pos)
-			shoot_gun:FireServer(hit_pos, hit_pos, target_head, hit_pos)
-			shoot_gun:FireServer(hit_pos, hit_pos, target_head, hit_pos)
+			fireShootGun(shoot_gun, target_head)
+			fireShootGun(shoot_gun, target_head)
+			fireShootGun(shoot_gun, target_head)
 
 			if equipped then
 				pcall(function()
@@ -2909,6 +2929,11 @@ bindKey(SilentAim)
 
 local namecall; namecall = hookmetamethod(game, "__namecall", function(self, ...)
 	local method = getnamecallmethod()
+
+	-- 우리 스크립트가 쏜 ShootGun은 Silent Aim이 건드리지 않음
+	if getgenv()._SalboOwnShot then
+		return namecall(self, ...)
+	end
 
 	if Core.Features.SilentAim.Enabled and not checkcaller() and method == "FireServer" then
 		local remoteName = self and self.Name
@@ -4760,11 +4785,61 @@ local function isDuelPlace()
 end
 
 local function isInMatch()
-	-- 로비가 아니면 전부/맵으로 보고 큐 중단
-	if isLobbyPlace() then
-		return false
+	-- 별도 듀얼 맵
+	if isDuelPlace() then
+		return true
 	end
-	return true
+
+	-- Match 속성 (이 게임이 로비와 같은 place에서 매치함)
+	local m = LocalPlayer:GetAttribute("Match")
+	if type(m) == "string" and #m > 0 then return true end
+	if type(m) == "number" and m ~= 0 then return true end
+	if m == true then return true end
+
+	local pg = LocalPlayer:FindFirstChild("PlayerGui")
+	if not pg then
+		return not isLobbyPlace()
+	end
+
+	-- RoundCountdown 켜짐 = 라운드/매치 중
+	local rc = pg:FindFirstChild("RoundCountdown")
+	if rc and rc:IsA("LayerCollector") and rc.Enabled == true then
+		return true
+	end
+
+	-- 매치 HUD
+	for _, child in ipairs(pg:GetChildren()) do
+		if child:IsA("LayerCollector") and child.Enabled then
+			local n = string.lower(tostring(child.Name))
+			if string.find(n, "queue", 1, true)
+				or string.find(n, "lobby", 1, true)
+				or string.find(n, "loading", 1, true)
+				or string.find(n, "emote", 1, true)
+			then
+				-- skip
+			elseif string.find(n, "match", 1, true)
+				or string.find(n, "round", 1, true)
+				or string.find(n, "duel", 1, true)
+				or string.find(n, "score", 1, true)
+				or string.find(n, "ingame", 1, true)
+				or string.find(n, "gamehud", 1, true)
+				or n == "hud"
+			then
+				return true
+			end
+		end
+	end
+
+	-- 로비 place가 아니면 매치
+	if not isLobbyPlace() then
+		return true
+	end
+
+	return false
+end
+
+local function canRunAutoQueue()
+	return not isInMatch()
 end
 
 local function normalizeGuiText(s)
@@ -5114,9 +5189,8 @@ local function waitForMatchOrQueue(timeoutSec)
 	AutoQueueState.Phase = "wait"
 
 	while AutoQueueState.Running and Core.Settings.AutoQueue and (tick() - startT) < timeoutSec do
-		-- 로비 아니면 즉시 중단 (게임 중 재시도/거절 알림 금지)
-		if not isLobbyPlace() or isInMatch() then
-			print("[살보결] AutoQueue leave wait (not lobby / in match)")
+		if isInMatch() or not canRunAutoQueue() then
+			print("[살보결] AutoQueue stop wait — in match")
 			return true
 		end
 
@@ -5133,7 +5207,6 @@ local function waitForMatchOrQueue(timeoutSec)
 				if not joinErrChecked and elapsed >= 1.0 and elapsed <= 5 and hasJoinErrorToast() then
 					joinErrChecked = true
 					print("[살보결] AutoQueue join rejected")
-					-- 알림 스팸 없이 조용히 재시도
 					task.wait(3)
 					return false
 				end
@@ -5145,19 +5218,19 @@ local function waitForMatchOrQueue(timeoutSec)
 		end
 	end
 
-	return not isLobbyPlace() or isInMatch()
+	return isInMatch()
 end
 
 local function autoQueueLoop()
-	Notify("Auto Queue", "로비에서만 큐: 플레이 → 1v1")
-	print("[살보결] AutoQueue start place=", game.PlaceId, "lobby=", isLobbyPlace())
+	Notify("Auto Queue", "로비에서만 큐")
+	print("[살보결] AutoQueue start place=", game.PlaceId, "inMatch=", isInMatch())
 
 	while AutoQueueState.Running and Core.Settings.AutoQueue do
 		local ok, err = pcall(function()
-			-- ===== 게임/맵 중: 큐 완전 정지 =====
-			if not isLobbyPlace() then
+			-- 게임 중이면 큐 완전 정지 (같은 place 매치 포함)
+			if isInMatch() or not canRunAutoQueue() then
 				AutoQueueState.Phase = "ingame"
-				task.wait(4)
+				task.wait(3)
 				return
 			end
 
@@ -5185,7 +5258,7 @@ local function autoQueueLoop()
 					clickGui(playBtn)
 					for _ = 1, 20 do
 						if not AutoQueueState.Running then return end
-						if not isLobbyPlace() then return end
+						if isInMatch() then return end
 						if isModeMenuOpen() or isQueueSearching() then break end
 						task.wait(0.2)
 					end
