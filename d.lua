@@ -4963,33 +4963,34 @@ local function isQueueSearching()
 	local pg = LocalPlayer:FindFirstChild("PlayerGui")
 	if not pg then return false end
 
+	-- SearchingFrame Visible 만으로는 오탐 많음 → 실제 "찾고 있습니다" 문구만 인정
+	local function textLooksSearching(t)
+		t = normalizeGuiText(t)
+		if t == "" then return false end
+		if string.find(t, "찾고 있습니다", 1, true) then return true end
+		if string.find(t, "플레이어들 찾고", 1, true) then return true end
+		if string.find(t, "플레이어를 찾는", 1, true) then return true end
+		if string.find(t, "searching for", 1, true) then return true end
+		if string.find(t, "finding players", 1, true) then return true end
+		return false
+	end
+
 	local qhud = pg:FindFirstChild("QueueHUD")
-	if qhud then
-		local hudOn = true
-		if qhud:IsA("LayerCollector") then
-			hudOn = qhud.Enabled == true
-		end
-		if hudOn then
-			local searching = qhud:FindFirstChild("SearchingFrame", true)
-			-- Visible==true 일 때만 (숨겨진 프레임 AbsoluteSize 오탐 제거)
-			if searching and searching:IsA("GuiObject") and searching.Visible == true then
-				if searching.AbsoluteSize.X > 0 and searching.AbsoluteSize.Y > 0 then
-					return true
-				end
-			end
-			for _, d in ipairs(qhud:GetDescendants()) do
-				if (d:IsA("TextLabel") or d:IsA("TextButton")) and d.Visible == true then
-					local t = normalizeGuiText(d.Text)
-					if string.find(t, "찾고 있습니다", 1, true)
-						or string.find(t, "searching for", 1, true)
-						or string.find(t, "finding players", 1, true)
-					then
+	if qhud and (not qhud:IsA("LayerCollector") or qhud.Enabled) then
+		local searching = qhud:FindFirstChild("SearchingFrame", true)
+		if searching and searching:IsA("GuiObject") and searching.Visible == true
+			and searching.AbsoluteSize.X > 8 and searching.AbsoluteSize.Y > 8
+		then
+			for _, d in ipairs(searching:GetDescendants()) do
+				if (d:IsA("TextLabel") or d:IsA("TextButton")) and d.Visible then
+					if textLooksSearching(d.Text) then
 						return true
 					end
 				end
 			end
 		end
 	end
+
 	return false
 end
 
@@ -5162,16 +5163,21 @@ local function autoQueueLoop()
 				return
 			end
 
+			-- 검색 중이면 대기 (오탐이면 바로 false라 Play로 진행)
 			if isQueueSearching() then
 				print("[살보결] AutoQueue searching — wait")
 				Notify("Auto Queue", "매칭 검색 중...")
-				waitForMatchOrQueue(180)
+				local okWait = waitForMatchOrQueue(90)
+				-- 검색이 가짜/끊기면 Play부터 다시
+				if not okWait and not isQueueSearching() then
+					print("[살보결] AutoQueue search ended — retry play")
+				end
 				return
 			end
 
 			local now = tick()
-			if (AutoQueueState.LastAttempt or 0) > 0 and (now - AutoQueueState.LastAttempt) < 2.5 then
-				task.wait(0.3)
+			if (AutoQueueState.LastAttempt or 0) > 0 and (now - AutoQueueState.LastAttempt) < 2 then
+				task.wait(0.25)
 				return
 			end
 
@@ -5212,16 +5218,12 @@ local function autoQueueLoop()
 				print("[살보결] click 1v1", btn1:GetFullName())
 				clickGui(btn1)
 				Notify("Auto Queue", "3) 매칭 대기...")
-				local okWait = waitForMatchOrQueue(120)
-				if not okWait then
-					task.wait(3)
-				end
+				waitForMatchOrQueue(90)
 				return
 			end
 
-			print("[살보결] 1v1 not found — reopen play")
-			-- 모드 메뉴가 이상하면 잠시 후 플레이부터 다시
-			task.wait(1.5)
+			print("[살보결] 1v1 not found — retry")
+			task.wait(1.2)
 		end)
 
 		if not ok then
