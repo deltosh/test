@@ -2735,29 +2735,17 @@ local function fireShootGun(shoot_gun, hitPart)
 	if not shoot_gun or not hitPart then return end
 	local pos = hitPart.Position
 	getgenv()._SalboOwnShot = true
-	local ok = pcall(function()
+	pcall(function()
 		shoot_gun:FireServer(pos, pos, hitPart, pos)
 	end)
-	if not ok then
-		pcall(function()
-			shoot_gun:FireServer(pos, hitPart, pos)
-		end)
-		pcall(function()
-			shoot_gun:FireServer(hitPart, pos)
-		end)
-	end
 	getgenv()._SalboOwnShot = false
 end
 
--- AutoShoot과 같은 적 판정 (1.lua 의 Team nil==nil / Match 엄격비교는 전원 스킵됨)
-local function isCombatEnemy(target)
-	if target == LocalPlayer then return false end
-	local myMatch = LocalPlayer:GetAttribute("Match")
-	local theirMatch = target:GetAttribute("Match")
-	if myMatch ~= nil and theirMatch ~= nil and myMatch ~= theirMatch then
-		return false
-	end
-	if LocalPlayer.Team and target.Team and target.Team == LocalPlayer.Team then
+local function isGunTool(tool)
+	if not tool or not tool:IsA("Tool") then return false end
+	if tool:GetAttribute("Cooldown") == nil then return false end
+	local n = string.lower(tool.Name)
+	if string.find(n, "knife", 1, true) or string.find(n, "blade", 1, true) then
 		return false
 	end
 	return true
@@ -2765,29 +2753,50 @@ end
 
 local function equipShootTool(character)
 	if not character then return nil end
-	local equipped = nil
-	local backpack = LocalPlayer:FindFirstChild("Backpack")
-	if backpack then
-		for _, gun in next, backpack:GetChildren() do
-			if gun:IsA("Tool") and gun:GetAttribute("Cooldown") ~= nil then
-				gun:SetAttribute("Cooldown", 0)
-				gun.Parent = character
-				equipped = gun
-				break
-			end
-		end
-	end
-	if equipped then return equipped end
+	-- 이미 총 들고 있으면 유지
 	for _, tool in next, character:GetChildren() do
-		if tool:IsA("Tool") and tool:GetAttribute("Cooldown") ~= nil then
+		if isGunTool(tool) then
 			tool:SetAttribute("Cooldown", 0)
 			return tool
+		end
+	end
+	local backpack = LocalPlayer:FindFirstChild("Backpack")
+	if not backpack then return nil end
+	for _, gun in next, backpack:GetChildren() do
+		if isGunTool(gun) then
+			gun:SetAttribute("Cooldown", 0)
+			gun.Parent = character
+			return gun
 		end
 	end
 	return nil
 end
 
--- Kill All = AutoShoot 발사 방식을 적 전원에게 (화면/벽 조건 없음)
+-- 필터 최소: 나 제외 + 살아있음 (Team/Match 때문에 전원 스킵되던 문제 제거)
+local function collectKillAllTargets(originPos, maxCount)
+	local list = {}
+	for _, target in next, Services.Players:GetPlayers() do
+		if target == LocalPlayer then continue end
+		local target_character = target.Character
+		if not target_character then continue end
+		local humanoid = target_character:FindFirstChildOfClass("Humanoid")
+		if not humanoid or humanoid.Health <= 0 then continue end
+		local hitPart = target_character:FindFirstChild("Head")
+			or target_character:FindFirstChild("HumanoidRootPart")
+		if not hitPart then continue end
+		local dist = originPos and (hitPart.Position - originPos).Magnitude or 0
+		list[#list + 1] = { part = hitPart, dist = dist }
+	end
+	table.sort(list, function(a, b)
+		return a.dist < b.dist
+	end)
+	local out = {}
+	for i = 1, math.min(maxCount or 6, #list) do
+		out[i] = list[i].part
+	end
+	return out
+end
+
 KillAll = sections.combat_left:AddToggle({
 	name = "Kill All",
 	default = Core.Features.KillAll.Enabled,
@@ -2799,8 +2808,16 @@ KillAll = sections.combat_left:AddToggle({
 			return
 		end
 
-		Core.Connections.KillAll = Services.RunService.PreRender:Connect(function()
+		print("[살보결] Kill All ON")
+		local lastShot = 0
+		local lastLog = 0
+
+		Core.Connections.KillAll = Services.RunService.Heartbeat:Connect(function()
 			if not Core.Features.KillAll.Enabled then return end
+
+			local now = tick()
+			-- 프레임마다 난사하면 서버가 무시함 → AutoShoot처럼 짧게 쓰로틀
+			if (now - lastShot) < 0.05 then return end
 
 			local character = LocalPlayer.Character
 			if not character then return end
@@ -2808,35 +2825,44 @@ KillAll = sections.combat_left:AddToggle({
 			local player_humanoid = character:FindFirstChildOfClass("Humanoid")
 			if not player_humanoid or player_humanoid.Health <= 0 then return end
 
+			local myRoot = character:FindFirstChild("HumanoidRootPart")
 			local shoot_gun = getShootGun()
-			if not shoot_gun then return end
-
-			local equipped = equipShootTool(character)
-			local any = false
-
-			for _, target in next, Services.Players:GetPlayers() do
-				if not isCombatEnemy(target) then continue end
-
-				local target_character = target.Character
-				if not target_character then continue end
-
-				local humanoid = target_character:FindFirstChildOfClass("Humanoid")
-				if not humanoid or humanoid.Health <= 0 then continue end
-
-				local hitPart = target_character:FindFirstChild("Head")
-					or target_character:FindFirstChild("HumanoidRootPart")
-				if not hitPart then continue end
-
-				fireShootGun(shoot_gun, hitPart)
-				fireShootGun(shoot_gun, hitPart)
-				fireShootGun(shoot_gun, hitPart)
-				any = true
+			if not shoot_gun then
+				if (now - lastLog) > 2 then
+					lastLog = now
+					warn("[살보결] Kill All: ShootGun remote 없음")
+				end
+				return
 			end
 
-			if any and equipped then
+			local equipped = equipShootTool(character)
+			local targets = collectKillAllTargets(myRoot and myRoot.Position, 8)
+
+			if #targets == 0 then
+				if (now - lastLog) > 2 then
+					lastLog = now
+					warn("[살보결] Kill All: 타겟 0명")
+				end
+				return
+			end
+
+			lastShot = now
+			for i = 1, #targets do
+				local hitPart = targets[i]
+				fireShootGun(shoot_gun, hitPart)
+				fireShootGun(shoot_gun, hitPart)
+				fireShootGun(shoot_gun, hitPart)
+			end
+
+			if equipped then
 				pcall(function()
 					equipped:Activate()
 				end)
+			end
+
+			if (now - lastLog) > 2 then
+				lastLog = now
+				print("[살보결] Kill All firing targets=", #targets, "gun=", equipped and equipped.Name or "nil")
 			end
 		end)
 	end
@@ -2856,8 +2882,7 @@ AutoShoot = sections.combat_left:AddToggle({
 
 		Core.Connections.AutoShoot = Services.RunService.PreRender:Connect(function()
 			if not Core.Features.AutoShoot.Enabled then return end
-			-- Kill All이 전원 사격 중이면 중복 발사만 피함
-			if Core.Features.KillAll.Enabled then return end
+			-- Kill All이 켜져 있어도 AutoShoot은 유지 (Kill All 실패 시 둘 다 죽지 않게)
 
 			local character = LocalPlayer.Character
 			if not character then return end
@@ -2899,8 +2924,7 @@ local namecall; namecall = hookmetamethod(game, "__namecall", function(self, ...
 	local method = getnamecallmethod()
 	local args = { ... }
 
-	-- Kill All / AutoShoot 자체 발사는 Silent Aim이 인자를 바꾸지 않게
-	if getgenv()._SalboOwnShot or Core.Features.KillAll.Enabled then
+	if getgenv()._SalboOwnShot then
 		return namecall(self, ...)
 	end
 
